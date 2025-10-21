@@ -9,6 +9,14 @@ const config = require('./env');
  * 2. Service client (with service key) - for admin operations bypassing RLS
  */
 
+// Validate Supabase configuration
+if (!config.supabase?.url || !config.supabase?.anonKey || !config.supabase?.serviceKey) {
+  throw new Error(
+    'Missing required Supabase configuration. Please check your .env file and ensure ' +
+    'SUPABASE_URL, SUPABASE_ANON_KEY, and SUPABASE_SERVICE_KEY are set.'
+  );
+}
+
 // Public client - respects Row Level Security (RLS)
 const supabase = createClient(
   config.supabase.url,

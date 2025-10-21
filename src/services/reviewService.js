@@ -167,11 +167,11 @@ async function getRatingBreakdown(userId) {
       .eq('is_flagged', false);
 
     const breakdown = {
-      5_stars: 0,
-      4_stars: 0,
-      3_stars: 0,
-      2_stars: 0,
-      1_star: 0,
+      '5_stars': 0,
+      '4_stars': 0,
+      '3_stars': 0,
+      '2_stars': 0,
+      '1_star': 0,
     };
 
     reviews?.forEach(review => {

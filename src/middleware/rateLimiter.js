@@ -13,8 +13,8 @@ const { ERROR_CODES } = require('../utils/constants');
  * Default rate limiter
  */
 const defaultLimiter = rateLimit({
-  windowMs: config.rateLimit.windowMs,
-  max: config.rateLimit.maxRequests,
+  windowMs: config.rateLimit?.windowMs || 60000, // Default: 1 minute
+  max: config.rateLimit?.maxRequests || 100, // Default: 100 requests
   message: {
     error: {
       code: ERROR_CODES.RATE_LIMIT_EXCEEDED,

@@ -52,7 +52,7 @@ if (config.nodeEnv === 'production') {
   // Combined log (all logs)
   transports.push(
     new DailyRotateFile({
-      filename: path.join(config.logging.filePath, 'combined-%DATE%.log'),
+      filename: path.join(config.logging?.filePath || './logs', 'combined-%DATE%.log'),
       datePattern: 'YYYY-MM-DD',
       maxFiles: '14d',
       format: logFormat,
@@ -63,7 +63,7 @@ if (config.nodeEnv === 'production') {
   // Error log (errors only)
   transports.push(
     new DailyRotateFile({
-      filename: path.join(config.logging.filePath, 'error-%DATE%.log'),
+      filename: path.join(config.logging?.filePath || './logs', 'error-%DATE%.log'),
       datePattern: 'YYYY-MM-DD',
       maxFiles: '30d',
       format: logFormat,
@@ -74,7 +74,7 @@ if (config.nodeEnv === 'production') {
 
 // Create logger instance
 const logger = winston.createLogger({
-  level: config.logging.level,
+  level: config.logging?.level || 'info',
   format: logFormat,
   transports,
   exitOnError: false,

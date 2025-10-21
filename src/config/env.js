@@ -1,8 +1,8 @@
 const dotenv = require('dotenv');
 const path = require('path');
 
-// Load environment variables from .env file
-dotenv.config({ path: path.join(__dirname, '../../.env') });
+// Load environment variables from .env.local file
+dotenv.config({ path: path.join(__dirname, '../../.env.local') });
 
 /**
  * Environment configuration with validation
