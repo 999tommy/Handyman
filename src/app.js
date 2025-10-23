@@ -76,6 +76,35 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(defaultLimiter);
 
 // =====================================================
+// ROOT ROUTE
+// =====================================================
+
+app.get('/', (req, res) => {
+  res.status(200).json({
+    message: '🔨 Handyman Marketplace API',
+    version: '1.0.0',
+    status: 'running',
+    timestamp: new Date().toISOString(),
+    environment: config.nodeEnv,
+    documentation: '/api',
+    health: '/health',
+    endpoints: {
+      auth: '/api/auth',
+      users: '/api/users',
+      artisans: '/api/artisans',
+      jobs: '/api/jobs',
+      offers: '/api/offers',
+      chat: '/api/chat',
+      location: '/api/location',
+      payments: '/api/payments',
+      reviews: '/api/reviews',
+      notifications: '/api/notifications',
+      admin: '/api/admin',
+    },
+  });
+});
+
+// =====================================================
 // HEALTH CHECK
 // =====================================================
 
