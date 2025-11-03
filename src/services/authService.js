@@ -21,7 +21,10 @@ const smsService = require('./smsService');
  * @returns {Promise<Object>} User and session data
  */
 async function registerCustomer(userData) {
-  const { email, password, full_name, phone_number } = userData;
+  const { email, password, first_name, last_name, phone_number, address, interested_services } = userData;
+
+  // Combine first and last name
+  const full_name = `${first_name} ${last_name}`;
 
   try {
     // Check if email already exists
@@ -49,7 +52,7 @@ async function registerCustomer(userData) {
 
     const userId = authData.user.id;
 
-    // Create profile
+    // Create profile with address and interested services
     const { error: profileError } = await supabaseAdmin
       .from('profiles')
       .insert({
@@ -58,11 +61,14 @@ async function registerCustomer(userData) {
         full_name,
         phone_number: formatPhoneToInternational(phone_number),
         phone_verified: false,
+        address, // Plain text address
+        interested_services, // Array of service categories
       });
 
     if (profileError) {
       // Rollback: delete auth user
       await supabaseAdmin.auth.admin.deleteUser(userId);
+      logger.error('Profile creation error:', profileError);
       throw new Error('Failed to create profile');
     }
 
@@ -72,11 +78,11 @@ async function registerCustomer(userData) {
       .insert({ id: userId });
 
     if (customerError) {
+      logger.error('Customer record error:', customerError);
       throw new Error('Failed to create customer record');
     }
 
-    // Send verification code
-    await sendPhoneVerificationCode(phone_number);
+    // NO SMS verification for customers
 
     // Generate session
     const { data: sessionData, error: sessionError } = await supabase.auth.signInWithPassword({
@@ -177,7 +183,7 @@ async function registerArtisan(artisanData) {
       throw new Error('Failed to create profile');
     }
 
-    // Create artisan record
+    // Create artisan record (AUTO-APPROVED)
     const { error: artisanError } = await supabaseAdmin
       .from('artisans')
       .insert({
@@ -193,8 +199,8 @@ async function registerArtisan(artisanData) {
         bank_name,
         account_number,
         account_name,
-        verification_status: 'pending',
-        approval_status: 'pending',
+        verification_status: 'verified', // Auto-verified since they completed all steps
+        approval_status: 'approved', // Auto-approved - no admin approval needed
       });
 
     if (artisanError) {
@@ -252,18 +258,31 @@ async function registerArtisan(artisanData) {
       }
     }
 
-    // Send verification code
-    await sendPhoneVerificationCode(phone_number);
+    // NO SMS verification here - artisan already verified during onboarding
+    // They can now login immediately
 
-    logger.info(`Artisan registered (pending approval): ${userId}`);
+    // Generate session for auto-login
+    const { data: sessionData, error: sessionError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (sessionError) {
+      logger.error('Session creation error:', sessionError);
+      throw new Error('Failed to create session');
+    }
+
+    logger.info(`Artisan registered and auto-approved: ${userId}`);
 
     return {
-      message: 'Registration successful. Awaiting admin approval.',
-      artisan: {
+      message: 'Registration successful! You can now start browsing jobs.',
+      user: {
         id: userId,
         email,
-        approval_status: 'pending',
+        role: USER_ROLES.ARTISAN,
+        approval_status: 'approved',
       },
+      session: sessionData.session,
     };
   } catch (error) {
     logger.logError(error, { context: 'registerArtisan' });
@@ -325,21 +344,38 @@ async function sendPhoneVerificationCode(phoneNumber) {
     // Store verification code in database (with expiry)
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-    // You'd want a verification_codes table for this
-    // For now, we'll use a simple approach with session storage
+    // Store code in profiles table temporarily (or create a verification_codes table)
+    // For simplicity, we'll use a JSONB field or create a separate table
+    // Using upsert to handle multiple verification attempts
+    const { error: storeError } = await supabaseAdmin
+      .from('phone_verifications')
+      .upsert({
+        phone_number: formattedPhone,
+        code: code,
+        expires_at: expiresAt.toISOString(),
+        attempts: 0,
+      }, { onConflict: 'phone_number' });
+
+    if (storeError) {
+      logger.error('Failed to store verification code:', storeError);
+      // Continue anyway - we can still send the SMS
+    }
     
-    // Send SMS
+    // Send SMS via Twilio
     await smsService.sendSMS(formattedPhone, `Your Handyman verification code is: ${code}`);
 
     logger.info(`Verification code sent to ${formattedPhone}`);
 
-    // In production, store the code in database or Redis with expiry
-    // For now, return the code (ONLY in development)
+    // In development, log the code for testing
     if (process.env.NODE_ENV === 'development') {
       logger.debug(`DEV: Verification code for ${formattedPhone}: ${code}`);
     }
 
-    return { message: 'Verification code sent' };
+    return { 
+      message: 'Verification code sent',
+      // Return code in development for easy testing
+      ...(process.env.NODE_ENV === 'development' && { code })
+    };
   } catch (error) {
     logger.logError(error, { context: 'sendPhoneVerificationCode' });
     throw new Error('Failed to send verification code');
@@ -353,24 +389,60 @@ async function sendPhoneVerificationCode(phoneNumber) {
  * @param {string} code 
  * @returns {Promise<Object>}
  */
-async function verifyPhone(userId, phoneNumber, code) {
+async function verifyPhone(phoneNumber, code) {
   try {
-    // In production, verify code from database/Redis
-    // For now, we'll use a simple check
-    
-    // TODO: Implement proper code verification
-    
-    // Update profile
-    const { error } = await supabaseAdmin
-      .from('profiles')
-      .update({ phone_verified: true })
-      .eq('id', userId);
+    const formattedPhone = formatPhoneToInternational(phoneNumber);
 
-    if (error) {
-      throw new Error('Failed to update phone verification status');
+    // Get verification record from database
+    const { data: verification, error: fetchError } = await supabaseAdmin
+      .from('phone_verifications')
+      .select('*')
+      .eq('phone_number', formattedPhone)
+      .single();
+
+    if (fetchError || !verification) {
+      throw new ValidationError('No verification code found for this number');
     }
 
-    logger.info(`Phone verified for user: ${userId}`);
+    // Check if code is expired
+    if (new Date(verification.expires_at) < new Date()) {
+      throw new ValidationError('Verification code has expired. Please request a new one.');
+    }
+
+    // Check if too many attempts
+    if (verification.attempts >= 5) {
+      throw new ValidationError('Too many verification attempts. Please request a new code.');
+    }
+
+    // Verify the code
+    if (verification.code !== code) {
+      // Increment attempts
+      await supabaseAdmin
+        .from('phone_verifications')
+        .update({ attempts: verification.attempts + 1 })
+        .eq('phone_number', formattedPhone);
+
+      throw new ValidationError('Invalid verification code');
+    }
+
+    // Code is valid - mark phone as verified
+    // Find user by phone number and update
+    const { error: updateError } = await supabaseAdmin
+      .from('profiles')
+      .update({ phone_verified: true })
+      .eq('phone_number', formattedPhone);
+
+    if (updateError) {
+      logger.error('Failed to update phone verification:', updateError);
+    }
+
+    // Delete verification record (cleanup)
+    await supabaseAdmin
+      .from('phone_verifications')
+      .delete()
+      .eq('phone_number', formattedPhone);
+
+    logger.info(`Phone verified: ${formattedPhone}`);
 
     return {
       message: 'Phone verified successfully',

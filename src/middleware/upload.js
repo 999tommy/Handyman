@@ -54,23 +54,29 @@ const uploadMultiple = (fieldName, maxCount) => upload.array(fieldName, maxCount
 
 /**
  * Upload to Supabase Storage
- * @param {Buffer} fileBuffer - File buffer from multer
- * @param {string} fileName - Original filename
+ * @param {Object|Buffer} file - Multer file object or buffer
  * @param {string} bucket - Supabase bucket name
+ * @param {string} userId - Optional user ID for organizing files
  * @returns {Promise<string>} Public URL of uploaded file
  */
-async function uploadToSupabase(fileBuffer, fileName, bucket = 'uploads') {
+async function uploadToSupabase(file, bucket = 'uploads', userId = null) {
   try {
+    // Handle both file object and buffer/filename params
+    const fileBuffer = file.buffer || file;
+    const fileName = file.originalname || file.name || 'file';
+    
     // Generate unique filename
     const ext = path.extname(fileName);
     const uniqueName = `${uuidv4()}${ext}`;
-    const filePath = `${Date.now()}_${uniqueName}`;
+    const filePath = userId 
+      ? `${userId}/${Date.now()}_${uniqueName}`
+      : `${Date.now()}_${uniqueName}`;
 
     // Upload to Supabase Storage
     const { data, error } = await supabase.storage
       .from(bucket)
       .upload(filePath, fileBuffer, {
-        contentType: 'auto',
+        contentType: file.mimetype || 'auto',
         cacheControl: '3600',
         upsert: false,
       });

@@ -66,10 +66,11 @@ const sendVerificationCode = asyncHandler(async (req, res) => {
 /**
  * Verify phone number
  * POST /api/auth/verify-phone
+ * No authentication required - can verify before account is fully created
  */
 const verifyPhone = asyncHandler(async (req, res) => {
-  const { phone_number, verification_code } = req.body;
-  const result = await authService.verifyPhone(req.user.id, phone_number, verification_code);
+  const { phone_number, code } = req.body;
+  const result = await authService.verifyPhone(phone_number, code);
 
   res.status(200).json({
     success: true,

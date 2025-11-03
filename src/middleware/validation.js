@@ -93,43 +93,58 @@ const passwordSchema = Joi.string()
 const authSchemas = {
   registerCustomer: Joi.object({
     body: Joi.object({
-      full_name: Joi.string().min(2).max(255).required(),
+      first_name: Joi.string().min(2).max(100).required(),
+      last_name: Joi.string().min(2).max(100).required(),
       email: emailSchema.required(),
       password: passwordSchema.required(),
       phone_number: phoneSchema.required(),
+      address: Joi.string().min(5).max(500).required(),
+      interested_services: Joi.array().items(Joi.string()).min(1).required(),
     }),
   }),
 
   registerArtisan: Joi.object({
     body: Joi.object({
+      // Basic Info (Required)
+      category_id: uuidSchema.required(), // What service they offer
       full_name: Joi.string().min(2).max(255).required(),
       email: emailSchema.required(),
       password: passwordSchema.required(),
-      phone_number: phoneSchema.required(),
-      profession: Joi.string().min(2).max(100).required(),
-      category_id: uuidSchema.required(),
-      tagline: Joi.string().max(255).required(),
+      phone_number: phoneSchema.required(), // SMS verification happens separately
+      
+      // Professional Info (Required)
+      tagline: Joi.string().min(10).max(255).required(), // Short tagline
       years_experience: Joi.number().integer().min(0).max(50).required(),
-      description: Joi.string().min(20).max(2000).optional(),
-      skills: Joi.array().items(Joi.string()).min(1).optional(),
-      base_rate: Joi.number().min(0).optional(),
-      government_id_url: Joi.string().uri().optional(),
-      profile_picture_url: Joi.string().uri().optional(),
-      bank_name: Joi.string().optional(),
-      account_number: Joi.string().pattern(/^\d{10}$/).optional(),
-      account_name: Joi.string().optional(),
-      workstation_address: Joi.string().optional(),
+      description: Joi.string().min(50).max(2000).required(), // Longer "describe yourself"
+      skills: Joi.array().items(Joi.string()).min(1).required(), // Array of skills
+      
+      // Media (Required)
+      profile_picture_url: Joi.string().uri().required(),
+      government_id_url: Joi.string().uri().required(),
+      portfolio_images: Joi.array().items(Joi.string().uri()).min(1).required(),
+      
+      // Pricing (Required)
+      base_rate: Joi.number().min(100).required(), // How much they charge
+      
+      // Location (Required)
+      workstation_address: Joi.string().min(10).required(), // Plain text address
       city: Joi.string().required(),
       latitude: Joi.number().min(-90).max(90).required(),
       longitude: Joi.number().min(-180).max(180).required(),
+      
+      // Availability (Required)
       availability: Joi.array().items(
         Joi.object({
           day_of_week: Joi.number().integer().min(0).max(6).required(),
           start_time: Joi.string().pattern(/^\d{2}:\d{2}$/).required(),
           end_time: Joi.string().pattern(/^\d{2}:\d{2}$/).required(),
         })
-      ).optional(),
-      portfolio_images: Joi.array().items(Joi.string().uri()).optional(),
+      ).min(1).required(),
+      
+      // Bank Details (Required)
+      bank_name: Joi.string().required(),
+      account_number: Joi.string().pattern(/^\d{10}$/).required(),
+      account_name: Joi.string().required(),
     }),
   }),
 
@@ -143,7 +158,7 @@ const authSchemas = {
   verifyPhone: Joi.object({
     body: Joi.object({
       phone_number: phoneSchema.required(),
-      verification_code: Joi.string().length(6).pattern(/^\d+$/).required(),
+      code: Joi.string().length(6).pattern(/^\d+$/).required(),
     }),
   }),
 

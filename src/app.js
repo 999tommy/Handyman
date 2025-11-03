@@ -19,6 +19,7 @@ const paymentRoutes = require('./routes/paymentRoutes');
 const reviewRoutes = require('./routes/reviewRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const uploadRoutes = require('./routes/uploadRoutes');
 
 /**
  * Express Application Setup
@@ -100,6 +101,7 @@ app.get('/', (req, res) => {
       reviews: '/api/reviews',
       notifications: '/api/notifications',
       admin: '/api/admin',
+      upload: '/api/upload',
     },
   });
 });
@@ -134,6 +136,7 @@ app.use(`${API_PREFIX}/payments`, paymentRoutes);
 app.use(`${API_PREFIX}/reviews`, reviewRoutes);
 app.use(`${API_PREFIX}/notifications`, notificationRoutes);
 app.use(`${API_PREFIX}/admin`, adminRoutes);
+app.use(`${API_PREFIX}/upload`, uploadRoutes);
 
 // API documentation route
 app.get(`${API_PREFIX}`, (req, res) => {
@@ -153,6 +156,7 @@ app.get(`${API_PREFIX}`, (req, res) => {
       reviews: `${API_PREFIX}/reviews`,
       notifications: `${API_PREFIX}/notifications`,
       admin: `${API_PREFIX}/admin`,
+      upload: `${API_PREFIX}/upload`,
     },
   });
 });
