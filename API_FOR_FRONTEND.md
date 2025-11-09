@@ -207,6 +207,82 @@ GET /api/users/me
 Authorization: Bearer TOKEN
 ```
 
+**Response (Customer):**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "user-uuid",
+    "email": "customer@example.com",
+    "role": "customer",
+    "phone_verified": false,
+    "created_at": "2025-10-30T12:00:00.000Z",
+    "profile": {
+      "full_name": "John Doe",
+      "address": "No 3, Rajui Road Lagos Nigeria",
+      "interested_services": ["plumbing", "electrical"],
+      "profile_picture_url": "https://.../profile.jpg"
+    },
+    "customer": {
+      "total_jobs": 12,
+      "active_jobs": 2,
+      "completed_jobs": 9,
+      "wallet_balance": 15000
+    }
+  }
+}
+```
+
+**Response (Artisan):**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "artisan-uuid",
+    "email": "artisan@example.com",
+    "role": "artisan",
+    "phone_verified": true,
+    "created_at": "2025-09-01T09:30:00.000Z",
+    "profile": {
+      "full_name": "Jane Smith",
+      "profile_picture_url": "https://.../profile.jpg"
+    },
+    "artisan": {
+      "category_id": "uuid-of-plumbing-category",
+      "profession": "Plumber",
+      "tagline": "Expert plumber with 10 years experience",
+      "years_experience": 10,
+      "description": "Professional plumbing services across Lagos...",
+      "skills": ["pipe installation", "leak repair", "water heater"],
+      "base_rate": 5000,
+      "rating": 4.8,
+      "total_reviews": 36,
+      "approval_status": "approved",
+      "verification_status": "verified"
+    },
+    "availability": [
+      { "day_of_week": 1, "start_time": "09:00", "end_time": "17:00" },
+      { "day_of_week": 3, "start_time": "09:00", "end_time": "17:00" }
+    ],
+    "location": {
+      "workstation_address": "123 Main St, Ikeja",
+      "city": "Lagos",
+      "latitude": 6.5244,
+      "longitude": 3.3792
+    },
+    "bank": {
+      "bank_name": "GTBank",
+      "account_number": "0123456789",
+      "account_name": "Jane Smith"
+    },
+    "portfolio": [
+      "https://.../work-1.jpg",
+      "https://.../work-2.jpg"
+    ]
+  }
+}
+```
+
 ### Update Profile
 ```http
 PATCH /api/users/me

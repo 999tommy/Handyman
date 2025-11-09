@@ -32,10 +32,21 @@ function validate(schema) {
     );
 
     if (error) {
-      const errors = error.details.map(detail => ({
-        field: detail.path.join('.'),
-        message: detail.message,
-      }));
+      const errors = error.details.map(detail => {
+        const rawPath = detail.path || [];
+        const pathWithoutSource = ['body', 'query', 'params'].includes(rawPath[0])
+          ? rawPath.slice(1)
+          : rawPath;
+        const field = pathWithoutSource.join('.') || rawPath.join('.') || 'unknown';
+
+        // Joi wraps field names in quotes - remove them for cleaner messages
+        const message = detail.message ? detail.message.replace(/"/g, '') : 'Invalid value';
+
+        return {
+          field,
+          message,
+        };
+      });
 
       logger.debug('Validation error:', errors);
 
