@@ -128,7 +128,7 @@ POST /api/auth/register/artisan
 Content-Type: application/json
 
 {
-  "category_id": "uuid-of-plumbing-category",
+  "category_name": "Plumbing",
   "full_name": "Jane Smith",
   "email": "jane@example.com",
   "password": "SecurePass123!",
@@ -248,7 +248,8 @@ Authorization: Bearer TOKEN
       "profile_picture_url": "https://.../profile.jpg"
     },
     "artisan": {
-      "category_id": "uuid-of-plumbing-category",
+      // Use either category_id (UUID) OR category_name (case-insensitive match)
+      "category_name": "Plumbing",
       "profession": "Plumber",
       "tagline": "Expert plumber with 10 years experience",
       "years_experience": 10,

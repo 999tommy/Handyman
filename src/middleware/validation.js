@@ -117,7 +117,8 @@ const authSchemas = {
   registerArtisan: Joi.object({
     body: Joi.object({
       // Basic Info (Required)
-      category_id: uuidSchema.required(), // What service they offer
+      category_id: uuidSchema.optional(), // What service they offer
+      category_name: Joi.string().min(2).max(255).optional(), // Alternative to UUID
       full_name: Joi.string().min(2).max(255).required(),
       email: emailSchema.required(),
       password: passwordSchema.required(),
@@ -156,7 +157,7 @@ const authSchemas = {
       bank_name: Joi.string().required(),
       account_number: Joi.string().pattern(/^\d{10}$/).required(),
       account_name: Joi.string().required(),
-    }),
+    }).xor('category_id', 'category_name'),
   }),
 
   login: Joi.object({

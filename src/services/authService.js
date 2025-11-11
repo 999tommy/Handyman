@@ -25,6 +25,7 @@ async function registerCustomer(userData) {
 
   // Combine first and last name
   const full_name = `${first_name} ${last_name}`;
+  const normalizedPhone = formatPhoneToInternational(phone_number);
 
   try {
     // Check if email already exists
@@ -32,10 +33,21 @@ async function registerCustomer(userData) {
       .from('profiles')
       .select('email')
       .eq('email', email)
-      .single();
+      .maybeSingle();
 
     if (existingUser) {
       throw new ConflictError('Email already registered');
+    }
+
+    // Check if phone number already exists
+    const { data: existingPhone } = await supabaseAdmin
+      .from('profiles')
+      .select('phone_number')
+      .eq('phone_number', normalizedPhone)
+      .maybeSingle();
+
+    if (existingPhone) {
+      throw new ConflictError('Phone number already registered');
     }
 
     // Create auth user in Supabase
@@ -59,7 +71,7 @@ async function registerCustomer(userData) {
         id: userId,
         role: USER_ROLES.CUSTOMER,
         full_name,
-        phone_number: formatPhoneToInternational(phone_number),
+        phone_number: normalizedPhone,
         phone_verified: false,
         address, // Plain text address
         interested_services, // Array of service categories
@@ -69,6 +81,16 @@ async function registerCustomer(userData) {
       // Rollback: delete auth user
       await supabaseAdmin.auth.admin.deleteUser(userId);
       logger.error('Profile creation error:', profileError);
+      if (profileError.code === '23505') {
+        const errorMessage = profileError.message || '';
+        if (errorMessage.includes('profiles_phone_number_key')) {
+          throw new ConflictError('Phone number already registered');
+        }
+        if (errorMessage.includes('profiles_pkey') || errorMessage.includes('profiles_id_key')) {
+          throw new ConflictError('Profile already exists');
+        }
+      }
+
       throw new Error('Failed to create profile');
     }
 
@@ -123,6 +145,7 @@ async function registerArtisan(artisanData) {
     phone_number,
     profession,
     category_id,
+    category_name,
     tagline,
     years_experience,
     description,
@@ -151,6 +174,33 @@ async function registerArtisan(artisanData) {
 
     if (existingUser) {
       throw new ConflictError('Email already registered');
+    }
+
+    // Resolve category ID if provided by name
+    let resolvedCategoryId = category_id || null;
+
+    if (!resolvedCategoryId && category_name) {
+      const normalizedCategoryName = category_name.trim();
+      const { data: categoryRecord, error: categoryLookupError } = await supabaseAdmin
+        .from('categories')
+        .select('id')
+        .ilike('name', normalizedCategoryName)
+        .maybeSingle();
+
+      if (categoryLookupError) {
+        logger.error('Category lookup error:', categoryLookupError);
+        throw new Error('Failed to resolve category');
+      }
+
+      if (!categoryRecord) {
+        throw new ValidationError(`Unknown category: ${normalizedCategoryName}`);
+      }
+
+      resolvedCategoryId = categoryRecord.id;
+    }
+
+    if (!resolvedCategoryId) {
+      throw new ValidationError('Category is required');
     }
 
     // Create auth user
@@ -189,7 +239,7 @@ async function registerArtisan(artisanData) {
       .insert({
         id: userId,
         profession,
-        category_id,
+        category_id: resolvedCategoryId,
         tagline,
         years_experience,
         description,
