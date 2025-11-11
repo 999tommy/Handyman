@@ -125,6 +125,7 @@ const authSchemas = {
       phone_number: phoneSchema.required(), // SMS verification happens separately
       
       // Professional Info (Required)
+      profession: Joi.string().min(2).max(100).required(),
       tagline: Joi.string().min(10).max(255).required(), // Short tagline
       years_experience: Joi.number().integer().min(0).max(50).required(),
       description: Joi.string().min(50).max(2000).required(), // Longer "describe yourself"

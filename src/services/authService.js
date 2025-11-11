@@ -255,6 +255,24 @@ async function registerArtisan(artisanData) {
 
     if (artisanError) {
       await supabaseAdmin.auth.admin.deleteUser(userId);
+      await supabaseAdmin.from('profiles').delete().eq('id', userId);
+      logger.error('Artisan record error:', artisanError);
+
+      if (artisanError.code === '23505') {
+        const message = artisanError.message || '';
+        if (message.includes('artisans_pkey') || message.includes('artisans_id_key')) {
+          throw new ConflictError('Artisan profile already exists');
+        }
+      }
+
+      if (artisanError.code === '23502' && artisanError.details) {
+        throw new ValidationError(`Missing required artisan field: ${artisanError.details}`);
+      }
+
+      if (artisanError.message) {
+        throw new ValidationError(artisanError.message);
+      }
+
       throw new Error('Failed to create artisan profile');
     }
 
