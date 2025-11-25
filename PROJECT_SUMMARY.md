@@ -10,7 +10,7 @@ A **production-ready Express.js backend** for a two-sided marketplace mobile app
 - ✅ Environment variable management with validation
 - ✅ Supabase client setup (public + admin)
 - ✅ Socket.io configuration
-- ✅ Winston logger with daily rotation
+- ✅ Winston logger with daily rotatio'n
 
 #### 2. **Middleware Layer** (`src/middleware/`)
 - ✅ JWT authentication with Supabase Auth
