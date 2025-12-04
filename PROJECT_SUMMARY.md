@@ -2,7 +2,7 @@
 
 ## 📦 What Has Been Built
 
-A **production-ready Express.js backend** for a two-sided marketplace mobile app connecting customers with artisans.
+A **production-ready Express.js backend** for a two-sided marketplace mobile app connecting cu-stomers with artisans.
 
 ### ✅ Completed Components
 

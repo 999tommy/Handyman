@@ -5,7 +5,7 @@ SIMPLE DEPLOYMENT STEPS - SEND BACKEND TO FRONTEND DEVELOPER
 IMPORTANT: Don't use Netlify! It doesn't support Express.js + Socket.io
 Use Railway instead (easiest + free tier)
 
---------------------------------------------------------------------
+-------------------------------------aaa-------------------------------
 STEP 1: PUSH CODE TO GITHUB
 --------------------------------------------------------------------
 
