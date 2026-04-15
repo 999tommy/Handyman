@@ -1,8 +1,29 @@
 const { supabase, supabaseAdmin } = require('../config/supabase');
-const { NotFoundError, ForbiddenError } = require('../middleware/errorHandler');
-const { APPROVAL_STATUS } = require('../utils/constants');
+const { NotFoundError, ForbiddenError, ValidationError } = require('../middleware/errorHandler');
+const { APPROVAL_STATUS, JOB_STATUS, PAYMENT_STATUS, PAGINATION } = require('../utils/constants');
 const logger = require('../utils/logger');
 const notificationService = require('./notificationService');
+const paymentService = require('./paymentService');
+const { logAdminAction } = require('./auditService');
+
+function normalizePagination(options = {}) {
+  const page = Math.max(parseInt(options.page, 10) || PAGINATION.DEFAULT_PAGE, 1);
+  const limit = Math.min(
+    Math.max(parseInt(options.limit, 10) || PAGINATION.DEFAULT_LIMIT, 1),
+    PAGINATION.MAX_LIMIT
+  );
+  const offset = (page - 1) * limit;
+  return { page, limit, offset };
+}
+
+function buildPagination(count = 0, page, limit) {
+  return {
+    total: count || 0,
+    page,
+    pages: Math.ceil((count || 0) / limit),
+    limit,
+  };
+}
 
 /**
  * Admin Service
@@ -17,8 +38,7 @@ const notificationService = require('./notificationService');
  */
 async function getPendingArtisans(options = {}) {
   try {
-    const { page = 1, limit = 20 } = options;
-    const offset = (page - 1) * limit;
+    const { page, limit, offset } = normalizePagination(options);
 
     const { data: artisans, error, count } = await supabaseAdmin
       .from('artisans')
@@ -37,11 +57,7 @@ async function getPendingArtisans(options = {}) {
 
     return {
       artisans,
-      pagination: {
-        total: count,
-        page,
-        pages: Math.ceil(count / limit),
-      },
+      pagination: buildPagination(count, page, limit),
     };
   } catch (error) {
     logger.logError(error, { context: 'getPendingArtisans' });
@@ -249,8 +265,7 @@ async function getPlatformStats() {
  */
 async function getFlaggedReviews(options = {}) {
   try {
-    const { page = 1, limit = 20 } = options;
-    const offset = (page - 1) * limit;
+    const { page, limit, offset } = normalizePagination(options);
 
     const { data: reviews, error, count } = await supabase
       .from('reviews')
@@ -270,16 +285,246 @@ async function getFlaggedReviews(options = {}) {
 
     return {
       reviews,
-      pagination: {
-        total: count,
-        page,
-        pages: Math.ceil(count / limit),
-      },
+      pagination: buildPagination(count, page, limit),
     };
   } catch (error) {
     logger.logError(error, { context: 'getFlaggedReviews' });
     throw error;
   }
+}
+
+/**
+ * List users
+ */
+async function listUsers(options = {}) {
+  try {
+    const { page, limit, offset } = normalizePagination(options);
+    const { role, search, sort = 'created_at', order = 'desc' } = options;
+
+    let query = supabaseAdmin
+      .from('profiles')
+      .select(`
+        *,
+        customer:customers(id, total_jobs_posted, total_spent, average_rating),
+        artisan:artisans(id, approval_status, verification_status, total_jobs_completed, total_earnings, average_rating)
+      `, { count: 'exact' })
+      .order(sort, { ascending: order === 'asc' })
+      .range(offset, offset + limit - 1);
+
+    if (role) {
+      query = query.eq('role', role);
+    }
+
+    if (search) {
+      query = query.ilike('full_name', `%${search}%`);
+    }
+
+    const { data, error, count } = await query;
+
+    if (error) {
+      throw new Error('Failed to fetch users');
+    }
+
+    return {
+      users: data,
+      pagination: buildPagination(count, page, limit),
+    };
+  } catch (error) {
+    logger.logError(error, { context: 'listUsers' });
+    throw error;
+  }
+}
+
+/**
+ * Get user profile details
+ */
+async function getUserProfile(userId) {
+  try {
+    const { data: profile, error } = await supabaseAdmin
+      .from('profiles')
+      .select(`
+        *,
+        customer:customers(*),
+        artisan:artisans(*)
+      `)
+      .eq('id', userId)
+      .single();
+
+    if (error || !profile) {
+      throw new NotFoundError('User');
+    }
+
+    return profile;
+  } catch (error) {
+    logger.logError(error, { context: 'getUserProfile' });
+    throw error;
+  }
+}
+
+/**
+ * List jobs
+ */
+async function listJobs(options = {}) {
+  try {
+    const { page, limit, offset } = normalizePagination(options);
+    const { status, search, customer_id, artisan_id, sort = 'created_at', order = 'desc' } = options;
+
+    let query = supabaseAdmin
+      .from('jobs')
+      .select(`
+        *,
+        customer:profiles!jobs_customer_id_fkey(full_name),
+        artisan:profiles!jobs_assigned_artisan_id_fkey(full_name)
+      `, { count: 'exact' })
+      .order(sort, { ascending: order === 'asc' })
+      .range(offset, offset + limit - 1);
+
+    if (status) query = query.eq('status', status);
+    if (customer_id) query = query.eq('customer_id', customer_id);
+    if (artisan_id) query = query.eq('assigned_artisan_id', artisan_id);
+    if (search) query = query.ilike('title', `%${search}%`);
+
+    const { data, error, count } = await query;
+
+    if (error) throw new Error('Failed to fetch jobs');
+
+    return {
+      jobs: data,
+      pagination: buildPagination(count, page, limit),
+    };
+  } catch (error) {
+    logger.logError(error, { context: 'listJobs' });
+    throw error;
+  }
+}
+
+/**
+ * Update job status (override)
+ */
+async function updateJobStatus(jobId, adminId, status, reason) {
+  if (!Object.values(JOB_STATUS).includes(status)) {
+    throw new ValidationError('Invalid job status');
+  }
+
+  const { data: job, error } = await supabaseAdmin
+    .from('jobs')
+    .select('*')
+    .eq('id', jobId)
+    .single();
+
+  if (error || !job) {
+    throw new NotFoundError('Job');
+  }
+
+  await supabaseAdmin
+    .from('jobs')
+    .update({
+      status,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', jobId);
+
+  await logAdminAction({
+    adminId,
+    action: 'job_status_update',
+    targetType: 'job',
+    targetId: jobId,
+    metadata: { previous_status: job.status, new_status: status, reason },
+  });
+
+  return { message: 'Job status updated', status };
+}
+
+/**
+ * List offers
+ */
+async function listOffers(options = {}) {
+  try {
+    const { page, limit, offset } = normalizePagination(options);
+    const { status, job_id, artisan_id } = options;
+
+    let query = supabaseAdmin
+      .from('offers')
+      .select(`
+        *,
+        job:jobs(title, status),
+        artisan:profiles!offers_artisan_id_fkey(full_name)
+      `, { count: 'exact' })
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (status) query = query.eq('status', status);
+    if (job_id) query = query.eq('job_id', job_id);
+    if (artisan_id) query = query.eq('artisan_id', artisan_id);
+
+    const { data, error, count } = await query;
+
+    if (error) throw new Error('Failed to fetch offers');
+
+    return {
+      offers: data,
+      pagination: buildPagination(count, page, limit),
+    };
+  } catch (error) {
+    logger.logError(error, { context: 'listOffers' });
+    throw error;
+  }
+}
+
+/**
+ * Update offer status
+ */
+async function updateOfferStatus(offerId, adminId, status, reason) {
+  if (!status || typeof status !== 'string') {
+    throw new ValidationError('Status is required');
+  }
+
+  const { data: offer, error } = await supabaseAdmin
+    .from('offers')
+    .select('*')
+    .eq('id', offerId)
+    .single();
+
+  if (error || !offer) {
+    throw new NotFoundError('Offer');
+  }
+
+  await supabaseAdmin
+    .from('offers')
+    .update({
+      status,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', offerId);
+
+  await logAdminAction({
+    adminId,
+    action: 'offer_status_update',
+    targetType: 'offer',
+    targetId: offerId,
+    metadata: { previous_status: offer.status, new_status: status, reason },
+  });
+
+  return { message: 'Offer status updated', status };
+}
+
+/**
+ * Admin payment listing
+ */
+async function adminListPayments(options = {}) {
+  return paymentService.listPayments(options);
+}
+
+async function adminReleasePaymentWrapper(paymentId, adminId, overrides = {}) {
+  return paymentService.adminReleasePayment(paymentId, adminId, overrides);
+}
+
+async function adminRefundPaymentWrapper(paymentId, adminId, reason) {
+  return paymentService.adminRefundPayment(paymentId, adminId, reason);
+}
+
+async function getPaymentMetrics(options = {}) {
+  return paymentService.getPaymentMetrics(options);
 }
 
 module.exports = {
@@ -288,4 +533,14 @@ module.exports = {
   rejectArtisan,
   getPlatformStats,
   getFlaggedReviews,
+  listUsers,
+  getUserProfile,
+  listJobs,
+  updateJobStatus,
+  listOffers,
+  updateOfferStatus,
+  adminListPayments,
+  adminReleasePaymentWrapper,
+  adminRefundPaymentWrapper,
+  getPaymentMetrics,
 };

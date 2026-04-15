@@ -36,6 +36,7 @@ const PAYMENT_STATUS = {
   RELEASED: 'released',
   REFUNDED: 'refunded',
   FAILED: 'failed',
+  DISPUTED: 'disputed',
 };
 
 // Verification Status

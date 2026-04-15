@@ -6,6 +6,19 @@ const { asyncHandler } = require('../middleware/errorHandler');
  */
 
 /**
+ * Paystack webhook handler
+ * POST /api/payments/webhook
+ */
+const handleWebhook = asyncHandler(async (req, res) => {
+  await paymentService.handlePaystackWebhook(req.headers, req.rawBody, req.body);
+
+  res.status(200).json({
+    success: true,
+    message: 'Webhook processed',
+  });
+});
+
+/**
  * Initiate payment
  * POST /api/payments/initiate
  */
@@ -76,6 +89,7 @@ const getPaymentHistory = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
+  handleWebhook,
   initiatePayment,
   verifyPayment,
   releasePayment,

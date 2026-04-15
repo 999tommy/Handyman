@@ -63,8 +63,15 @@ if (config.nodeEnv === 'development') {
 // BODY PARSING MIDDLEWARE
 // =====================================================
 
-// Parse JSON bodies
-app.use(express.json({ limit: '10mb' }));
+// Parse JSON bodies and capture raw body for webhook verification
+app.use(express.json({
+  limit: '10mb',
+  verify: (req, res, buf) => {
+    if (req.originalUrl?.startsWith('/api/payments/webhook')) {
+      req.rawBody = buf;
+    }
+  },
+}));
 
 // Parse URL-encoded bodies
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));

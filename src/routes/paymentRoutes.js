@@ -8,6 +8,9 @@ const { requireCustomer } = require('../middleware/roleCheck');
  * Payment Routes
  */
 
+// Paystack webhook (no auth)
+router.post('/webhook', paymentController.handleWebhook);
+
 // Initiate payment
 router.post(
   '/initiate',

@@ -1,5 +1,5 @@
 const Joi = require('joi');
-const { ERROR_CODES } = require('../utils/constants');
+const { ERROR_CODES, JOB_STATUS, OFFER_STATUS } = require('../utils/constants');
 const logger = require('../utils/logger');
 
 /**
@@ -323,6 +323,36 @@ const reviewSchemas = {
   }),
 };
 
+/**
+ * Admin validation schemas
+ */
+const adminSchemas = {
+  updateJobStatus: Joi.object({
+    body: Joi.object({
+      status: Joi.string().valid(...Object.values(JOB_STATUS)).required(),
+      reason: Joi.string().max(500).allow('', null),
+    }),
+  }),
+  updateOfferStatus: Joi.object({
+    body: Joi.object({
+      status: Joi.string().valid(...Object.values(OFFER_STATUS)).required(),
+      reason: Joi.string().max(500).allow('', null),
+    }),
+  }),
+  releasePayment: Joi.object({
+    body: Joi.object({
+      platform_fee: Joi.number().precision(2).min(0).optional(),
+      artisan_payout: Joi.number().precision(2).min(0).optional(),
+      reason: Joi.string().max(500).allow('', null),
+    }),
+  }),
+  refundPayment: Joi.object({
+    body: Joi.object({
+      reason: Joi.string().max(500).allow('', null),
+    }),
+  }),
+};
+
 module.exports = {
   validate,
   authSchemas,
@@ -331,4 +361,5 @@ module.exports = {
   locationSchemas,
   chatSchemas,
   reviewSchemas,
+  adminSchemas,
 };
