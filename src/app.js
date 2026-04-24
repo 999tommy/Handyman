@@ -132,6 +132,7 @@ app.get('/health', (req, res) => {
 
 const API_PREFIX = '/api';
 
+// Standard API Routes
 app.use(`${API_PREFIX}/auth`, authRoutes);
 app.use(`${API_PREFIX}/users`, userRoutes);
 app.use(`${API_PREFIX}/artisans`, artisanRoutes);
@@ -144,6 +145,21 @@ app.use(`${API_PREFIX}/reviews`, reviewRoutes);
 app.use(`${API_PREFIX}/notifications`, notificationRoutes);
 app.use(`${API_PREFIX}/admin`, adminRoutes);
 app.use(`${API_PREFIX}/upload`, uploadRoutes);
+
+// =====================================================
+// COMPATIBILITY FALLBACK ROUTES
+// Handle common frontend URL formatting errors to prevent 404s
+// =====================================================
+
+// Fallback 1: Missing '/api' prefix (common with raw fetch calls)
+app.use('/auth', authRoutes);
+app.use('/upload', uploadRoutes);
+app.use('/artisans', artisanRoutes);
+
+// Fallback 2: Duplicate '/api/api' prefix (common with Axios baseURL misconfigurations)
+app.use(`${API_PREFIX}/api/auth`, authRoutes);
+app.use(`${API_PREFIX}/api/upload`, uploadRoutes);
+app.use(`${API_PREFIX}/api/artisans`, artisanRoutes);
 
 // API documentation route
 app.get(`${API_PREFIX}`, (req, res) => {

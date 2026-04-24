@@ -43,7 +43,11 @@ async function startServer() {
     
     if (!dbConnected) {
       logger.error('Failed to connect to database. Please check your Supabase configuration.');
-      process.exit(1);
+      if (config.nodeEnv === 'production') {
+        process.exit(1);
+      } else {
+        logger.warn('Continuing in development mode without database connection. Some endpoints may not work.');
+      }
     }
 
     // Start listening

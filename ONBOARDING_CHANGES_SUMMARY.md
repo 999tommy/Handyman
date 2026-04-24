@@ -300,9 +300,9 @@ const professionalInfo = {
 };
 
 // Step 9: Upload files (do this before final registration)
-const profilePicUrl = await uploadFile('/upload/profile-picture', profileImage);
-const govIdUrl = await uploadFile('/upload/government-id', idImage);
-const portfolioUrls = await uploadFiles('/upload/portfolio-images', portfolioImages);
+const profilePicUrl = await uploadFile('/api/upload/profile-picture', profileImage);
+const govIdUrl = await uploadFile('/api/upload/government-id', idImage);
+const portfolioUrls = await uploadFiles('/api/upload/portfolio-images', portfolioImages);
 
 // Step 10: Submit complete registration
 const artisanData = {

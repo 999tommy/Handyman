@@ -3,6 +3,9 @@
 **Base URL:** `https://your-backend-url.com/api`
 **Socket URL:** `wss://your-backend-url.com`
 
+> [!WARNING]
+> **Important URL Note:** If you are using Axios with `baseURL: '${API_URL}/api'`, you must NOT include `/api` in your endpoint string, or it will evaluate to `/api/api/...` and throw a **404 Route Not Found** error. For example, use `api.post('/auth/register/artisan')` rather than `api.post('/api/auth/register/artisan')`. However, if you are using a raw `fetch` call against the domain without the `/api` prefix, you MUST include `/api` in your path (e.g., `fetch('https://domain.com/api/upload/profile-picture')`).
+
 ---
 ### Key Endpoints
 
