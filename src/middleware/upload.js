@@ -1,7 +1,7 @@
 const multer = require('multer');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
-const { supabase } = require('../config/supabase');
+const { supabase, supabaseAdmin } = require('../config/supabase');
 const config = require('../config/env');
 const { UPLOAD_LIMITS, ERROR_CODES } = require('../utils/constants');
 const { ValidationError } = require('./errorHandler');
@@ -72,10 +72,19 @@ async function uploadToSupabase(file, bucket = 'uploads', userId = null) {
       ? `${userId}/${Date.now()}_${uniqueName}`
       : `${Date.now()}_${uniqueName}`;
 
-    // Upload to Supabase Storage
-    const { data, error } = await supabase.storage
+    // Convert Buffer to ArrayBuffer to fix Node 18+ native fetch issues with raw Buffers
+    // Node.js Buffers can cause 'TypeError: fetch failed' when passed to native fetch
+    let uploadPayload = fileBuffer;
+    if (Buffer.isBuffer(fileBuffer)) {
+      uploadPayload = new Uint8Array(fileBuffer).buffer;
+    }
+
+    // Upload to Supabase Storage using Admin client to bypass RLS
+    // Since registration uploads happen *before* auth tokens exist, 
+    // the anon client would violently trigger RLS rejections (throwing 500s).
+    const { data, error } = await supabaseAdmin.storage
       .from(bucket)
-      .upload(filePath, fileBuffer, {
+      .upload(filePath, uploadPayload, {
         contentType: file.mimetype || 'auto',
         cacheControl: '3600',
         upsert: false,
@@ -83,11 +92,13 @@ async function uploadToSupabase(file, bucket = 'uploads', userId = null) {
 
     if (error) {
       logger.error('Supabase upload error:', error);
-      throw new Error('File upload failed');
+      // Ensure the exact error from Supabase is preserved so frontend devs/users know what to fix
+      // If the bucket is missing, or RLS fails, this will accurately describe it rather than masking as a 500 error.
+      throw new ValidationError(`Storage failed: ${error.message || 'Unknown configuration error'}`);
     }
 
-    // Get public URL
-    const { data: urlData } = supabase.storage
+    // Get public URL using the admin connection (or anon, both yield the same public URL)
+    const { data: urlData } = supabaseAdmin.storage
       .from(bucket)
       .getPublicUrl(filePath);
 
