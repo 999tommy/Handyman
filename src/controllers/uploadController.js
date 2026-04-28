@@ -1,5 +1,5 @@
 const { asyncHandler } = require('../middleware/errorHandler');
-const { uploadToSupabase, deleteFromSupabase } = require('../middleware/upload');
+const { uploadToSupabase } = require('../middleware/upload');
 const logger = require('../utils/logger');
 
 /**
@@ -9,104 +9,75 @@ const logger = require('../utils/logger');
  */
 
 /**
- * Upload profile picture
- * POST /api/upload/profile-picture
+ * Unified Upload Media Endpoint
+ * POST /api/upload?type=...
  */
-const uploadProfilePicture = asyncHandler(async (req, res) => {
-  if (!req.file) {
+const uploadMedia = asyncHandler(async (req, res) => {
+  const { type } = req.query;
+
+  // Validate type
+  const allowedTypes = {
+    'profile_picture': 'profile-pictures',
+    'government_id': 'government-ids',
+    'portfolio_image': 'portfolio-images', // single
+    'portfolio_images': 'portfolio-images' // multiple
+  };
+
+  const bucket = allowedTypes[type];
+
+  if (!bucket) {
     return res.status(400).json({
       success: false,
-      error: { message: 'No file uploaded' },
+      error: { message: 'Invalid or missing "type" query parameter. Valid types are: profile_picture, government_id, portfolio_image, portfolio_images' },
     });
   }
 
-  const bucket = 'profile-pictures';
-  const fileUrl = await uploadToSupabase(req.file, bucket, req.user?.id);
+  // Handle multiple files
+  if (type === 'portfolio_images') {
+    const files = req.files && req.files['files'] ? req.files['files'] : null;
+    
+    if (!files || files.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'No files uploaded. Ensure you are sending files under the "files" form field.' },
+      });
+    }
 
-  logger.info(`Profile picture uploaded: ${fileUrl}`);
+    const uploadPromises = files.map(file => 
+      uploadToSupabase(file, bucket, req.user?.id)
+    );
+
+    const fileUrls = await Promise.all(uploadPromises);
+
+    logger.info(`${fileUrls.length} ${type} uploaded`);
+
+    return res.status(200).json({
+      success: true,
+      data: { urls: fileUrls },
+    });
+  }
+
+  // Handle single file
+  // multer `.fields()` puts files in req.files object, `.single()` puts it in req.file
+  const file = req.files && req.files['file'] ? req.files['file'][0] : (req.file ? req.file : null);
+
+  if (!file) {
+    return res.status(400).json({
+      success: false,
+      error: { message: 'No file uploaded. Ensure you are sending the file under the "file" form field.' },
+    });
+  }
+
+  const fileUrl = await uploadToSupabase(file, bucket, req.user?.id);
+
+  logger.info(`${type} uploaded: ${fileUrl}`);
 
   res.status(200).json({
     success: true,
     data: { url: fileUrl },
-  });
-});
-
-/**
- * Upload government ID
- * POST /api/upload/government-id
- */
-const uploadGovernmentId = asyncHandler(async (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({
-      success: false,
-      error: { message: 'No file uploaded' },
-    });
-  }
-
-  const bucket = 'government-ids';
-  const fileUrl = await uploadToSupabase(req.file, bucket, req.user?.id);
-
-  logger.info(`Government ID uploaded: ${fileUrl}`);
-
-  res.status(200).json({
-    success: true,
-    data: { url: fileUrl },
-  });
-});
-
-/**
- * Upload portfolio image
- * POST /api/upload/portfolio-image
- */
-const uploadPortfolioImage = asyncHandler(async (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({
-      success: false,
-      error: { message: 'No file uploaded' },
-    });
-  }
-
-  const bucket = 'portfolio-images';
-  const fileUrl = await uploadToSupabase(req.file, bucket, req.user?.id);
-
-  logger.info(`Portfolio image uploaded: ${fileUrl}`);
-
-  res.status(200).json({
-    success: true,
-    data: { url: fileUrl },
-  });
-});
-
-/**
- * Upload multiple portfolio images
- * POST /api/upload/portfolio-images
- */
-const uploadPortfolioImages = asyncHandler(async (req, res) => {
-  if (!req.files || req.files.length === 0) {
-    return res.status(400).json({
-      success: false,
-      error: { message: 'No files uploaded' },
-    });
-  }
-
-  const bucket = 'portfolio-images';
-  const uploadPromises = req.files.map(file => 
-    uploadToSupabase(file, bucket, req.user?.id)
-  );
-
-  const fileUrls = await Promise.all(uploadPromises);
-
-  logger.info(`${fileUrls.length} portfolio images uploaded`);
-
-  res.status(200).json({
-    success: true,
-    data: { urls: fileUrls },
   });
 });
 
 module.exports = {
-  uploadProfilePicture,
-  uploadGovernmentId,
-  uploadPortfolioImage,
-  uploadPortfolioImages,
+  uploadMedia,
 };

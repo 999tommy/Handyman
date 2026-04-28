@@ -17,10 +17,10 @@
 - `POST /api/auth/verify-phone` - Verify SMS code (artisan step 2)
 
 **File Uploads** (no auth required)
-- `POST /api/upload/profile-picture`
-- `POST /api/upload/government-id`
-- `POST /api/upload/portfolio-image`
-- `POST /api/upload/portfolio-images`
+- `POST /api/upload?type=profile_picture`
+- `POST /api/upload?type=government_id`
+- `POST /api/upload?type=portfolio_images` (multiple)
+- `POST /api/upload?type=portfolio_image` (single)
 
 **Jobs**
 - `POST /api/jobs` - Create job
@@ -639,10 +639,10 @@ Uploads happen **before** the final artisan registration call.
 
 | Endpoint | Field | Bucket | Auth Required |
 | --- | --- | --- | --- |
-| `POST /api/upload/profile-picture` | `file` | `profile-pictures` (public) | No |
-| `POST /api/upload/government-id` | `file` | `government-ids` (private) | No |
-| `POST /api/upload/portfolio-image` | `file` | `portfolio-images` (public) | No |
-| `POST /api/upload/portfolio-images` | `files[]` | `portfolio-images` (public) | No |
+| `POST /api/upload?type=profile_picture` | `file` | `profile-pictures` (public) | No |
+| `POST /api/upload?type=government_id` | `file` | `government-ids` (private) | No |
+| `POST /api/upload?type=portfolio_image` | `file` | `portfolio-images` (public) | No |
+| `POST /api/upload?type=portfolio_images` | `files` | `portfolio-images` (public) | No |
 
 **Single file upload example (React Native):**
 ```javascript
@@ -666,7 +666,7 @@ const uploadFile = async (endpoint, localUri) => {
   return result.data.url;
 };
 
-const profilePictureUrl = await uploadFile('/api/upload/profile-picture', imageUri);
+const profilePictureUrl = await uploadFile('/api/upload?type=profile_picture', imageUri);
 ```
 
 **Multiple portfolio images:**
@@ -682,7 +682,7 @@ const uploadPortfolioImages = async (images) => {
     });
   });
 
-  const response = await fetch(`${API_URL}/api/upload/portfolio-images`, {
+  const response = await fetch(`${API_URL}/api/upload?type=portfolio_images`, {
     method: 'POST',
     body: formData,
     headers: {

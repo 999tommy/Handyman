@@ -53,6 +53,14 @@ const uploadSingle = (fieldName) => upload.single(fieldName);
 const uploadMultiple = (fieldName, maxCount) => upload.array(fieldName, maxCount);
 
 /**
+ * Upload flexible files (either a single 'file' or multiple 'files')
+ */
+const uploadFlexible = upload.fields([
+  { name: 'file', maxCount: 1 },
+  { name: 'files', maxCount: 10 }
+]);
+
+/**
  * Upload to Supabase Storage
  * @param {Object|Buffer} file - Multer file object or buffer
  * @param {string} bucket - Supabase bucket name
@@ -240,6 +248,7 @@ module.exports = {
   upload,
   uploadSingle,
   uploadMultiple,
+  uploadFlexible,
   handleSingleUpload,
   handleMultipleUpload,
   uploadToSupabase,

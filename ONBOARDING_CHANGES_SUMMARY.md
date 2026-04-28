@@ -141,11 +141,11 @@ Response:
 
 ---
 
-### 4. **File Upload Endpoints** (New!)
+### 4. **File Upload Endpoints** (Unified)
 
 **Upload Profile Picture:**
 ```http
-POST /api/upload/profile-picture
+POST /api/upload?type=profile_picture
 Content-Type: multipart/form-data
 
 Form field: file (image file)
@@ -161,19 +161,19 @@ Response:
 
 **Upload Government ID:**
 ```http
-POST /api/upload/government-id
+POST /api/upload?type=government_id
 Form field: file
 ```
 
 **Upload Single Portfolio Image:**
 ```http
-POST /api/upload/portfolio-image
+POST /api/upload?type=portfolio_image
 Form field: file
 ```
 
 **Upload Multiple Portfolio Images:**
 ```http
-POST /api/upload/portfolio-images
+POST /api/upload?type=portfolio_images
 Form field: files (multiple)
 
 Response:
@@ -300,9 +300,9 @@ const professionalInfo = {
 };
 
 // Step 9: Upload files (do this before final registration)
-const profilePicUrl = await uploadFile('/api/upload/profile-picture', profileImage);
-const govIdUrl = await uploadFile('/api/upload/government-id', idImage);
-const portfolioUrls = await uploadFiles('/api/upload/portfolio-images', portfolioImages);
+const profilePicUrl = await uploadFile('/api/upload?type=profile_picture', profileImage);
+const govIdUrl = await uploadFile('/api/upload?type=government_id', idImage);
+const portfolioUrls = await uploadFiles('/api/upload?type=portfolio_images', portfolioImages);
 
 // Step 10: Submit complete registration
 const artisanData = {
@@ -387,7 +387,7 @@ curl -X POST http://localhost:5000/api/auth/verify-phone \
 
 **Test File Upload:**
 ```bash
-curl -X POST http://localhost:5000/api/upload/profile-picture \
+curl -X POST "http://localhost:5000/api/upload?type=profile_picture" \
   -F "file=@/path/to/image.jpg"
 ```
 
@@ -400,7 +400,7 @@ curl -X POST http://localhost:5000/api/upload/profile-picture \
 | **Customer Registration** | Added first_name, last_name, address, interested_services; Removed SMS verification |
 | **Artisan Registration** | All fields now required; Auto-approval; Auto-login |
 | **SMS Verification** | Separate endpoints; Stores codes in DB; Rate limiting; No auth required |
-| **File Uploads** | 4 new endpoints; Supabase Storage integration; No auth required |
+| **File Uploads** | 1 Unified endpoint (`/api/upload?type=...`); Supabase Storage integration; No auth required |
 | **Database** | New phone_verifications table; Added columns to profiles table |
 | **Validation** | Updated Joi schemas for all new fields |
 | **Services** | Updated authService with new logic |
