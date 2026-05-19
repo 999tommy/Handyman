@@ -10,9 +10,8 @@ const crypto = require('crypto');
  * @returns {string} Random numeric code
  */
 function generateVerificationCode(length = 6) {
-  return crypto.randomInt(0, Math.pow(10, length))
-    .toString()
-    .padStart(length, '0');
+  // Hardcoded for development as requested
+  return '666666';
 }
 
 /**
