@@ -94,7 +94,7 @@ async function findNearbyArtisans(latitude, longitude, filters = {}) {
     }
 
     // Filter approved artisans only
-    const approvedLocations = locations.filter(
+    const approvedLocations = (locations || []).filter(
       loc => loc.artisan?.approval_status === 'approved'
     );
 

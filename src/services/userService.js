@@ -161,7 +161,7 @@ async function searchArtisans(filters = {}) {
     }
 
     // Filter by location if provided
-    let filteredArtisans = artisans;
+    let filteredArtisans = artisans || [];
     if (lat && lng && artisans) {
       filteredArtisans = artisans
         .map(artisan => {
