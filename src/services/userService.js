@@ -217,13 +217,46 @@ async function searchArtisans(filters = {}) {
  */
 async function updateArtisanProfile(artisanId, updates) {
   try {
-    const { error } = await supabase
-      .from('artisans')
-      .update(updates)
-      .eq('id', artisanId);
+    const profileFields = ['full_name', 'phone_number', 'profile_picture_url'];
+    const locationFields = ['city', 'latitude', 'longitude', 'workstation_address', 'street'];
+    
+    const profileUpdates = {};
+    const locationUpdates = {};
+    const artisanUpdates = {};
 
-    if (error) {
-      throw new Error('Failed to update artisan profile');
+    for (const [key, value] of Object.entries(updates)) {
+      if (profileFields.includes(key)) {
+        profileUpdates[key] = value;
+      } else if (locationFields.includes(key)) {
+        locationUpdates[key] = value;
+      } else {
+        artisanUpdates[key] = value;
+      }
+    }
+
+    if (Object.keys(profileUpdates).length > 0) {
+      const { error } = await supabase
+        .from('profiles')
+        .update(profileUpdates)
+        .eq('id', artisanId);
+      if (error) throw new Error('Failed to update profile details: ' + error.message);
+    }
+
+    if (Object.keys(artisanUpdates).length > 0) {
+      const { error } = await supabase
+        .from('artisans')
+        .update(artisanUpdates)
+        .eq('id', artisanId);
+      if (error) throw new Error('Failed to update artisan details: ' + error.message);
+    }
+
+    if (Object.keys(locationUpdates).length > 0) {
+      // For locations, we might need to upsert if it doesn't exist, but usually it does.
+      const { error } = await supabase
+        .from('artisan_locations')
+        .update(locationUpdates)
+        .eq('artisan_id', artisanId);
+      if (error) throw new Error('Failed to update location details: ' + error.message);
     }
 
     logger.info(`Artisan profile updated: ${artisanId}`);

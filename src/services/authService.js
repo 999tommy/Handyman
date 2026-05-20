@@ -224,7 +224,7 @@ async function registerArtisan(artisanData) {
         role: USER_ROLES.ARTISAN,
         full_name,
         phone_number: formatPhoneToInternational(phone_number),
-        phone_verified: false,
+        phone_verified: true, // Auto-verify to bypass OTP requirement
         profile_picture_url,
       });
 

@@ -113,7 +113,7 @@ async function getUserConversations(userId, options = {}) {
 
     // Get unread count for each conversation
     const conversationsWithUnread = await Promise.all(
-      conversations.map(async (conv) => {
+      (conversations || []).map(async (conv) => {
         const { count: unreadCount } = await supabase
           .from('messages')
           .select('id', { count: 'exact', head: true })

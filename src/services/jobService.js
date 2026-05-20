@@ -185,7 +185,7 @@ async function getCustomerJobs(customerId, filters = {}) {
     }
 
     return {
-      jobs,
+      jobs: jobs || [],
       pagination: createPaginationMeta(count, page, validLimit),
     };
   } catch (error) {
@@ -306,7 +306,7 @@ async function browseJobs(artisanId, filters = {}) {
     }
 
     return {
-      jobs,
+      jobs: jobs || [],
       pagination: createPaginationMeta(count, page, validLimit),
     };
   } catch (error) {
