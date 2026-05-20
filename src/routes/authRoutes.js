@@ -47,7 +47,6 @@ router.post(
 // Verify phone
 router.post(
   '/verify-phone',
-  authenticate,
   validate(authSchemas.verifyPhone),
   authController.verifyPhone
 );
