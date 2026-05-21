@@ -389,7 +389,7 @@ async function getPaymentHistory(userId, options = {}) {
     }
 
     return {
-      payments,
+      payments: payments || [],
       pagination: {
         total: count,
         page,
@@ -755,7 +755,7 @@ async function listPayments(options = {}) {
   }
 
   return {
-    payments: data,
+    payments: data || [],
     pagination: {
       total: count,
       page,

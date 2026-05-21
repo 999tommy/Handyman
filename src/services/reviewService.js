@@ -139,7 +139,7 @@ async function getUserReviews(userId, options = {}) {
     const ratingBreakdown = await getRatingBreakdown(userId);
 
     return {
-      reviews,
+      reviews: reviews || [],
       rating_breakdown: ratingBreakdown,
       pagination: {
         total: count,

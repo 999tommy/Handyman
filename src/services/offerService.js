@@ -136,7 +136,7 @@ async function getJobOffers(jobId, userId) {
       throw new Error('Failed to fetch offers');
     }
 
-    return offers;
+    return offers || [];
   } catch (error) {
     logger.logError(error, { context: 'getJobOffers' });
     throw error;

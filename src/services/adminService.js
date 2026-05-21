@@ -56,7 +56,7 @@ async function getPendingArtisans(options = {}) {
     }
 
     return {
-      artisans,
+      artisans: artisans || [],
       pagination: buildPagination(count, page, limit),
     };
   } catch (error) {
@@ -284,7 +284,7 @@ async function getFlaggedReviews(options = {}) {
     }
 
     return {
-      reviews,
+      reviews: reviews || [],
       pagination: buildPagination(count, page, limit),
     };
   } catch (error) {
@@ -326,7 +326,7 @@ async function listUsers(options = {}) {
     }
 
     return {
-      users: data,
+      users: data || [],
       pagination: buildPagination(count, page, limit),
     };
   } catch (error) {
@@ -389,7 +389,7 @@ async function listJobs(options = {}) {
     if (error) throw new Error('Failed to fetch jobs');
 
     return {
-      jobs: data,
+      jobs: data || [],
       pagination: buildPagination(count, page, limit),
     };
   } catch (error) {
@@ -462,7 +462,7 @@ async function listOffers(options = {}) {
     if (error) throw new Error('Failed to fetch offers');
 
     return {
-      offers: data,
+      offers: data || [],
       pagination: buildPagination(count, page, limit),
     };
   } catch (error) {

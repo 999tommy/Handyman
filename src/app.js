@@ -20,6 +20,7 @@ const reviewRoutes = require('./routes/reviewRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
+const categoryRoutes = require('./routes/categoryRoutes');
 
 /**
  * Express Application Setup
@@ -109,6 +110,7 @@ app.get('/', (req, res) => {
       notifications: '/api/notifications',
       admin: '/api/admin',
       upload: '/api/upload',
+      categories: '/api/categories',
     },
   });
 });
@@ -145,6 +147,7 @@ app.use(`${API_PREFIX}/reviews`, reviewRoutes);
 app.use(`${API_PREFIX}/notifications`, notificationRoutes);
 app.use(`${API_PREFIX}/admin`, adminRoutes);
 app.use(`${API_PREFIX}/upload`, uploadRoutes);
+app.use(`${API_PREFIX}/categories`, categoryRoutes);
 
 // =====================================================
 // COMPATIBILITY FALLBACK ROUTES
@@ -155,11 +158,13 @@ app.use(`${API_PREFIX}/upload`, uploadRoutes);
 app.use('/auth', authRoutes);
 app.use('/upload', uploadRoutes);
 app.use('/artisans', artisanRoutes);
+app.use('/categories', categoryRoutes);
 
 // Fallback 2: Duplicate '/api/api' prefix (common with Axios baseURL misconfigurations)
 app.use(`${API_PREFIX}/api/auth`, authRoutes);
 app.use(`${API_PREFIX}/api/upload`, uploadRoutes);
 app.use(`${API_PREFIX}/api/artisans`, artisanRoutes);
+app.use(`${API_PREFIX}/api/categories`, categoryRoutes);
 
 // API documentation route
 app.get(`${API_PREFIX}`, (req, res) => {
@@ -180,6 +185,7 @@ app.get(`${API_PREFIX}`, (req, res) => {
       notifications: `${API_PREFIX}/notifications`,
       admin: `${API_PREFIX}/admin`,
       upload: `${API_PREFIX}/upload`,
+      categories: `${API_PREFIX}/categories`,
     },
   });
 });
