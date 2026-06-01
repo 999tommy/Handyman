@@ -229,6 +229,7 @@ const jobSchemas = {
       budget: Joi.number().min(1000).optional(),
       preferred_date: Joi.date().iso().min('now').optional(),
       time_preference: Joi.string().valid('morning', 'midday', 'afternoon', 'evening', 'flexible').optional(),
+      status: Joi.string().valid('completed', 'cancelled').optional(),
     }),
   }),
 

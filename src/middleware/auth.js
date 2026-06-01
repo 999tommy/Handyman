@@ -1,4 +1,4 @@
-const { supabase } = require('../config/supabase');
+const { supabase, supabaseAnon, createAuthenticatedClient } = require('../config/supabase');
 const logger = require('../utils/logger');
 const { ERROR_CODES } = require('../utils/constants');
 
@@ -31,7 +31,7 @@ async function authenticate(req, res, next) {
     const token = authHeader.substring(7); // Remove 'Bearer ' prefix
 
     // Verify token with Supabase
-    const { data: { user }, error } = await supabase.auth.getUser(token);
+    const { data: { user }, error } = await supabaseAnon.auth.getUser(token);
 
     if (error || !user) {
       logger.warn(`Authentication failed: ${error?.message || 'Invalid token'}`);
@@ -43,8 +43,9 @@ async function authenticate(req, res, next) {
       });
     }
 
-    // Fetch user profile with role
-    const { data: profile, error: profileError } = await supabase
+    // Fetch user profile with role using authenticated client context
+    const userSupabase = createAuthenticatedClient(token);
+    const { data: profile, error: profileError } = await userSupabase
       .from('profiles')
       .select('*')
       .eq('id', user.id)
@@ -60,8 +61,8 @@ async function authenticate(req, res, next) {
       });
     }
 
-    // Check if phone is verified (required for all users)
-    if (!profile.phone_verified) {
+    // Check if phone is verified (required for artisans, since customers bypass SMS OTP registration)
+    if (profile.role === 'artisan' && !profile.phone_verified) {
       return res.status(403).json({
         error: {
           code: ERROR_CODES.FORBIDDEN,

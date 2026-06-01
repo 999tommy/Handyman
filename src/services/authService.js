@@ -1,4 +1,4 @@
-const { supabase, supabaseAdmin } = require('../config/supabase');
+const { supabase, supabaseAdmin, supabaseAnon } = require('../config/supabase');
 const { ConflictError, UnauthorizedError, ValidationError } = require('../middleware/errorHandler');
 const { USER_ROLES } = require('../utils/constants');
 const { generateVerificationCode, formatPhoneToInternational } = require('../utils/helpers');
@@ -330,7 +330,7 @@ async function registerArtisan(artisanData) {
     // They can now login immediately
 
     // Generate session for auto-login
-    const { data: sessionData, error: sessionError } = await supabase.auth.signInWithPassword({
+    const { data: sessionData, error: sessionError } = await supabaseAnon.auth.signInWithPassword({
       email,
       password,
     });
@@ -366,7 +366,7 @@ async function registerArtisan(artisanData) {
  */
 async function login(email, password) {
   try {
-    const { data, error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabaseAnon.auth.signInWithPassword({
       email,
       password,
     });

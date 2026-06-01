@@ -53,7 +53,7 @@ async function createOffer(artisanId, offerData) {
       .from('offers')
       .insert({
         job_id,
-        artisan_id,
+        artisan_id: artisanId,
         proposed_price,
         cover_letter,
         estimated_duration,
@@ -115,7 +115,7 @@ async function getJobOffers(jobId, userId) {
         *,
         artisan:artisans(
           id,
-          profiles(full_name, profile_picture_url),
+          profiles!artisans_id_fkey(full_name, profile_picture_url),
           profession,
           average_rating,
           total_reviews,
@@ -133,6 +133,7 @@ async function getJobOffers(jobId, userId) {
     const { data: offers, error } = await query;
 
     if (error) {
+      logger.error('Failed to fetch offers in database:', error);
       throw new Error('Failed to fetch offers');
     }
 

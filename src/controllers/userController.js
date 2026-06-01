@@ -27,7 +27,9 @@ const updateCurrentUser = asyncHandler(async (req, res) => {
 
   res.status(200).json({
     success: true,
-    data: profile,
+    data: {
+      profile,
+    },
   });
 });
 

@@ -353,6 +353,7 @@ async function updateJob(jobId, customerId, updates) {
       .single();
 
     if (error) {
+      logger.error('Failed to update job in database:', error);
       throw new Error('Failed to update job');
     }
 

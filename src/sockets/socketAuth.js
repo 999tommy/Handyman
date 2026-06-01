@@ -1,4 +1,4 @@
-const { supabase } = require('../config/supabase');
+const { supabase, supabaseAnon, createAuthenticatedClient } = require('../config/supabase');
 const logger = require('../utils/logger');
 
 /**
@@ -16,14 +16,15 @@ async function socketAuthMiddleware(socket, next) {
     }
 
     // Verify token with Supabase
-    const { data: { user }, error } = await supabase.auth.getUser(token);
+    const { data: { user }, error } = await supabaseAnon.auth.getUser(token);
 
     if (error || !user) {
       return next(new Error('Invalid or expired token'));
     }
 
     // Fetch user profile
-    const { data: profile, error: profileError } = await supabase
+    const userSupabase = createAuthenticatedClient(token);
+    const { data: profile, error: profileError } = await userSupabase
       .from('profiles')
       .select('*')
       .eq('id', user.id)

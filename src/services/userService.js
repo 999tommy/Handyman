@@ -74,6 +74,7 @@ async function updateUserProfile(userId, updates) {
       .single();
 
     if (error) {
+      logger.error('Failed to update profile in database:', error);
       throw new Error('Failed to update profile');
     }
 
@@ -122,7 +123,7 @@ async function getArtisanProfile(artisanId) {
       .from('artisans')
       .select(`
         *,
-        profile:profiles(full_name, profile_picture_url, created_at),
+        profile:profiles!artisans_id_fkey(full_name, profile_picture_url, created_at),
         category:categories(id, name, icon_url),
         location:artisan_locations(*),
         availability:artisan_availability(*),
@@ -131,6 +132,9 @@ async function getArtisanProfile(artisanId) {
       .eq('id', artisanId)
       .single();
 
+    if (error) {
+      logger.error('Failed to fetch artisan profile in database:', error);
+    }
     if (error || !artisan) {
       throw new NotFoundError('Artisan');
     }
@@ -172,7 +176,7 @@ async function searchArtisans(filters = {}) {
         total_reviews,
         total_jobs_completed,
         base_rate,
-        profile:profiles(full_name, profile_picture_url),
+        profile:profiles!artisans_id_fkey(full_name, profile_picture_url),
         location:artisan_locations(city, latitude, longitude)
       `, { count: 'exact' })
       .eq('approval_status', 'approved');

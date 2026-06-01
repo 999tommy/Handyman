@@ -74,7 +74,7 @@ async function findNearbyArtisans(latitude, longitude, filters = {}) {
         city,
         artisan:artisans(
           id,
-          profiles(full_name, profile_picture_url),
+          profiles!artisans_id_fkey(full_name, profile_picture_url),
           profession,
           average_rating,
           total_reviews,
