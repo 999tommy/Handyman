@@ -66,10 +66,12 @@ async function getUserProfile(userId) {
  */
 async function updateUserProfile(userId, updates) {
   try {
-    const { error } = await supabase
+    const { data: updatedProfile, error } = await supabase
       .from('profiles')
       .update(updates)
-      .eq('id', userId);
+      .eq('id', userId)
+      .select()
+      .single();
 
     if (error) {
       throw new Error('Failed to update profile');
@@ -77,7 +79,32 @@ async function updateUserProfile(userId, updates) {
 
     logger.info(`Profile updated: ${userId}`);
 
-    return await getUserProfile(userId);
+    // Get role-specific data and merge with the freshly-updated profile
+    let roleData = null;
+    if (updatedProfile.role === 'customer') {
+      const { data } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      roleData = data;
+    } else if (updatedProfile.role === 'artisan') {
+      const { data } = await supabase
+        .from('artisans')
+        .select(`
+          *,
+          category:categories(name),
+          location:artisan_locations(*)
+        `)
+        .eq('id', userId)
+        .single();
+      roleData = data;
+    }
+
+    return {
+      ...updatedProfile,
+      role_data: roleData,
+    };
   } catch (error) {
     logger.logError(error, { context: 'updateUserProfile' });
     throw error;

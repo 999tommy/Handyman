@@ -89,11 +89,11 @@ async function getUserConversations(userId, options = {}) {
         job:jobs(id, title, status),
         customer:customers!customer_id(
           id,
-          profiles(full_name, profile_picture_url)
+          profiles!customers_id_fkey(full_name, profile_picture_url)
         ),
         artisan:artisans!artisan_id(
           id,
-          profiles(full_name, profile_picture_url),
+          profiles!artisans_id_fkey(full_name, profile_picture_url),
           profession
         ),
         last_message:messages(

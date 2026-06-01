@@ -109,13 +109,13 @@ async function getJobById(jobId, userId = null) {
         *,
         customer:customers(
           id,
-          profiles(full_name, profile_picture_url)
+          profiles!customers_id_fkey(full_name, profile_picture_url)
         ),
         category:categories(id, name, icon_url),
         photos:job_photos(id, photo_url, upload_order),
         assigned_artisan:artisans(
           id,
-          profiles(full_name, profile_picture_url),
+          profiles!artisans_id_fkey(full_name, profile_picture_url),
           profession,
           average_rating
         )
@@ -166,7 +166,7 @@ async function getCustomerJobs(customerId, filters = {}) {
         photos:job_photos(photo_url),
         assigned_artisan:artisans(
           id,
-          profiles(full_name, profile_picture_url),
+          profiles!artisans_id_fkey(full_name, profile_picture_url),
           profession
         )
       `, { count: 'exact' })
@@ -234,7 +234,7 @@ async function browseJobs(artisanId, filters = {}) {
       .select(`
         *,
         customer:customers(
-          profiles(full_name)
+          profiles!customers_id_fkey(full_name)
         ),
         category:categories(name),
         photos:job_photos(photo_url)

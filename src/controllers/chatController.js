@@ -40,6 +40,14 @@ const getMessages = asyncHandler(async (req, res) => {
  * POST /api/chat/conversations/:id/messages
  */
 const sendMessage = asyncHandler(async (req, res) => {
+  // Return empty response for empty content instead of letting it hit the DB
+  if (!req.body.content || req.body.content.trim() === '') {
+    return res.status(200).json({
+      success: true,
+      data: null,
+    });
+  }
+
   const message = await chatService.sendMessage(req.params.id, req.user.id, req.body);
 
   res.status(201).json({

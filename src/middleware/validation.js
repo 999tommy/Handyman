@@ -299,7 +299,7 @@ const chatSchemas = {
   sendMessage: Joi.object({
     body: Joi.object({
       message_type: Joi.string().valid('text', 'image').default('text'),
-      content: Joi.string().max(5000).required(),
+      content: Joi.string().allow('').max(5000).required(),
       image_url: Joi.string().uri().when('message_type', {
         is: 'image',
         then: Joi.required(),
