@@ -174,7 +174,13 @@ async function getCustomerJobs(customerId, filters = {}) {
       .order('created_at', { ascending: false });
 
     if (status) {
-      query = query.eq('status', status);
+      if (status === 'open') {
+        query = query.in('status', ['posted', 'offers_received']);
+      } else if (status === 'active' || status === 'ongoing') {
+        query = query.in('status', ['assigned', 'in_progress']);
+      } else {
+        query = query.eq('status', status);
+      }
     }
 
     const { data: jobs, error, count } = await query
