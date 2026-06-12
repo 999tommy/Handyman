@@ -415,7 +415,7 @@ async function cancelJob(jobId, customerId, reason = null) {
         job.assigned_artisan_id,
         'job_cancelled',
         'Job Cancelled',
-        `The job "${job.title}" has been cancelled by the customer`,
+        `The job "${job.title || 'Untitled'}" has been cancelled by the customer`,
         { job_id: jobId }
       );
     }
@@ -432,6 +432,57 @@ async function cancelJob(jobId, customerId, reason = null) {
   }
 }
 
+/**
+ * Get artisan's jobs
+ * @param {string} artisanId 
+ * @param {Object} filters 
+ * @returns {Promise<Object>}
+ */
+async function getArtisanJobs(artisanId, filters = {}) {
+  try {
+    const { page = 1, limit = 20, status } = filters;
+    const { offset, limit: validLimit } = paginate(page, limit);
+
+    let query = supabase
+      .from('jobs')
+      .select(`
+        *,
+        category:categories(name),
+        photos:job_photos(photo_url),
+        customer:customers(
+          id,
+          profiles!customers_id_fkey(full_name, profile_picture_url)
+        )
+      `, { count: 'exact' })
+      .eq('assigned_artisan_id', artisanId)
+      .order('created_at', { ascending: false });
+
+    if (status && status !== 'all') {
+      if (status === 'open') {
+        query = query.in('status', [JOB_STATUS.ASSIGNED, JOB_STATUS.IN_PROGRESS]);
+      } else {
+        query = query.eq('status', status);
+      }
+    }
+
+    const { data: jobs, error, count } = await query
+      .range(offset, offset + validLimit - 1);
+
+    if (error) {
+      logger.error('Failed to fetch artisan jobs:', error);
+      throw new Error('Failed to fetch artisan jobs');
+    }
+
+    return {
+      jobs: jobs || [],
+      pagination: createPaginationMeta(count, page, validLimit),
+    };
+  } catch (error) {
+    logger.logError(error, { context: 'getArtisanJobs' });
+    throw error;
+  }
+}
+
 module.exports = {
   createJob,
   getJobById,
@@ -439,4 +490,5 @@ module.exports = {
   browseJobs,
   updateJob,
   cancelJob,
+  getArtisanJobs,
 };

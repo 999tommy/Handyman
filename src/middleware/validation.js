@@ -142,8 +142,8 @@ const authSchemas = {
       // Location (Required)
       workstation_address: Joi.string().min(10).required(), // Plain text address
       city: Joi.string().required(),
-      latitude: Joi.number().min(-90).max(90).required(),
-      longitude: Joi.number().min(-180).max(180).required(),
+      latitude: Joi.number().min(-90).max(90).optional(),
+      longitude: Joi.number().min(-180).max(180).optional(),
       
       // Availability (Required)
       availability: Joi.array().items(
@@ -189,7 +189,7 @@ const jobSchemas = {
   createJob: Joi.object({
     body: Joi.object({
       category_id: uuidSchema.required(),
-      title: Joi.string().min(5).max(255).required(),
+      title: Joi.string().min(5).max(255).optional(),
       description: Joi.string().min(20).max(2000).required(),
       budget: Joi.number().min(1000).required(),
       date_preference: Joi.string().valid('on_date', 'before_date', 'flexible').required(),
@@ -198,26 +198,10 @@ const jobSchemas = {
       time_preference: Joi.string().valid('morning', 'midday', 'afternoon', 'evening', 'flexible').optional(),
       needs_specific_time: Joi.boolean().default(false),
       service_type: Joi.string().valid('onsite', 'online').required(),
-      street: Joi.string().when('service_type', {
-        is: 'onsite',
-        then: Joi.required(),
-        otherwise: Joi.optional(),
-      }),
-      city: Joi.string().when('service_type', {
-        is: 'onsite',
-        then: Joi.required(),
-        otherwise: Joi.optional(),
-      }),
-      latitude: Joi.number().min(-90).max(90).when('service_type', {
-        is: 'onsite',
-        then: Joi.required(),
-        otherwise: Joi.optional(),
-      }),
-      longitude: Joi.number().min(-180).max(180).when('service_type', {
-        is: 'onsite',
-        then: Joi.required(),
-        otherwise: Joi.optional(),
-      }),
+      street: Joi.string().optional(),
+      city: Joi.string().optional(),
+      latitude: Joi.number().min(-90).max(90).optional(),
+      longitude: Joi.number().min(-180).max(180).optional(),
       photos: Joi.array().items(Joi.string().uri()).max(5).optional(),
     }),
   }),
@@ -243,6 +227,14 @@ const jobSchemas = {
       date_from: Joi.date().iso().optional(),
       date_to: Joi.date().iso().optional(),
       sort: Joi.string().valid('date', 'budget', 'distance').default('date'),
+      page: Joi.number().integer().min(1).default(1),
+      limit: Joi.number().integer().min(1).max(100).default(20),
+    }),
+  }),
+
+  getArtisanJobs: Joi.object({
+    query: Joi.object({
+      status: Joi.string().valid('all', 'open', 'completed', 'cancelled').optional(),
       page: Joi.number().integer().min(1).default(1),
       limit: Joi.number().integer().min(1).max(100).default(20),
     }),

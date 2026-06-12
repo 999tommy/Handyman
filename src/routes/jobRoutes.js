@@ -29,6 +29,15 @@ router.get(
   jobController.getMyJobs
 );
 
+// Get artisan's jobs
+router.get(
+  '/artisan/my-jobs',
+  authenticate,
+  requireArtisan,
+  validate(jobSchemas.getArtisanJobs),
+  jobController.getArtisanJobs
+);
+
 // Browse jobs (artisan only)
 router.get(
   '/browse',

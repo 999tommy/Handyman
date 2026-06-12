@@ -161,7 +161,7 @@ async function notifyNearbyArtisans(job) {
         artisan.artisan_id,
         NOTIFICATION_TYPES.NEW_JOB,
         'New Job Available',
-        `New ${job.title} job posted in your area`,
+        `New ${job.title || 'New'} job posted in your area`,
         { job_id: job.id }
       )
     );

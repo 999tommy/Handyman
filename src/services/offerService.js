@@ -75,7 +75,7 @@ async function createOffer(artisanId, offerData) {
       job.customer_id,
       'offer_received',
       'New Offer Received',
-      `You received a new offer for "${job.title}"`,
+      `You received a new offer for "${job.title || 'Untitled'}"`,
       { job_id, offer_id: offer.id }
     );
 
@@ -206,7 +206,7 @@ async function acceptOffer(offerId, customerId) {
       offer.artisan_id,
       'offer_accepted',
       'Offer Accepted! 🎉',
-      `Your offer for "${offer.job.title}" has been accepted`,
+      `Your offer for "${offer.job.title || 'Untitled'}" has been accepted`,
       { job_id: offer.job_id, conversation_id: conversation.id }
     );
 

@@ -83,6 +83,19 @@ const cancelJob = asyncHandler(async (req, res) => {
   });
 });
 
+/**
+ * Get artisan's jobs
+ * GET /api/jobs/artisan/my-jobs
+ */
+const getArtisanJobs = asyncHandler(async (req, res) => {
+  const result = await jobService.getArtisanJobs(req.user.id, req.query);
+
+  res.status(200).json({
+    success: true,
+    data: result,
+  });
+});
+
 module.exports = {
   createJob,
   getJob,
@@ -90,4 +103,5 @@ module.exports = {
   browseJobs,
   updateJob,
   cancelJob,
+  getArtisanJobs,
 };
