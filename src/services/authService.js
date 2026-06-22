@@ -107,7 +107,7 @@ async function registerCustomer(userData) {
     // NO SMS verification for customers
 
     // Generate session
-    const { data: sessionData, error: sessionError } = await supabaseAnon.auth.signInWithPassword({
+    const { data: sessionData, error: sessionError } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
@@ -529,7 +529,7 @@ async function verifyPhone(phoneNumber, code) {
  */
 async function refreshAccessToken(refreshToken) {
   try {
-    const { data, error } = await supabaseAnon.auth.refreshSession({
+    const { data, error } = await supabase.auth.refreshSession({
       refresh_token: refreshToken,
     });
 
