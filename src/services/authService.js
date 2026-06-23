@@ -28,14 +28,10 @@ async function registerCustomer(userData) {
   const normalizedPhone = formatPhoneToInternational(phone_number);
 
   try {
-    // Check if email already exists
-    const { data: existingUser } = await supabaseAdmin
-      .from('profiles')
-      .select('email')
-      .eq('email', email)
-      .maybeSingle();
-
-    if (existingUser) {
+    // Check if email already exists (email lives in auth.users, not profiles)
+    const { data: existingAuthUsers } = await supabaseAdmin.auth.admin.listUsers();
+    const emailTaken = existingAuthUsers?.users?.some(u => u.email === email);
+    if (emailTaken) {
       throw new ConflictError('Email already registered');
     }
 
@@ -165,14 +161,10 @@ async function registerArtisan(artisanData) {
   } = artisanData;
 
   try {
-    // Check if email exists
-    const { data: existingUser } = await supabaseAdmin
-      .from('profiles')
-      .select('email')
-      .eq('email', email)
-      .single();
-
-    if (existingUser) {
+    // Check if email exists (email lives in auth.users, not profiles)
+    const { data: { users: authUsers } } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
+    const emailTaken = authUsers?.some(u => u.email === email);
+    if (emailTaken) {
       throw new ConflictError('Email already registered');
     }
 
@@ -230,6 +222,18 @@ async function registerArtisan(artisanData) {
 
     if (profileError) {
       await supabaseAdmin.auth.admin.deleteUser(userId);
+      logger.error('Artisan profile creation error:', profileError);
+
+      if (profileError.code === '23505') {
+        const errorMessage = profileError.message || '';
+        if (errorMessage.includes('profiles_phone_number_key')) {
+          throw new ConflictError('Phone number already registered');
+        }
+        if (errorMessage.includes('profiles_pkey') || errorMessage.includes('profiles_id_key')) {
+          throw new ConflictError('Profile already exists');
+        }
+      }
+
       throw new Error('Failed to create profile');
     }
 
