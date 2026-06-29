@@ -60,55 +60,24 @@ const searchLimiter = rateLimit({
 });
 
 /**
- * Limiter for job creation
+ * Pass-through middleware for flows that should not block test/live demos.
  */
-const jobCreationLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 10, // 10 jobs per hour
-  message: {
-    error: {
-      code: ERROR_CODES.RATE_LIMIT_EXCEEDED,
-      message: 'Job posting limit reached, please try again later',
-    },
-  },
-  keyGenerator: (req) => {
-    // Rate limit per user
-    return req.user?.id || req.ip;
-  },
-});
+const noLimiter = (req, res, next) => next();
 
 /**
- * Limiter for offer submission
+ * No limiter for job creation.
  */
-const offerLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 20, // 20 offers per hour
-  message: {
-    error: {
-      code: ERROR_CODES.RATE_LIMIT_EXCEEDED,
-      message: 'Offer submission limit reached, please try again later',
-    },
-  },
-  keyGenerator: (req) => req.user?.id || req.ip,
-});
+const jobCreationLimiter = noLimiter;
 
 /**
- * Limiter for SMS verification
+ * No limiter for offer submission.
  */
-const smsLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 3, // 3 SMS per hour
-  message: {
-    error: {
-      code: ERROR_CODES.RATE_LIMIT_EXCEEDED,
-      message: 'SMS limit reached, please try again in an hour',
-    },
-  },
-  keyGenerator: (req) => {
-    // Rate limit by phone number or IP
-    return req.body?.phone_number || req.ip;
-  },
-});
+const offerLimiter = noLimiter;
+
+/**
+ * No limiter for SMS verification.
+ */
+const smsLimiter = noLimiter;
 
 /**
  * Limiter for file uploads
