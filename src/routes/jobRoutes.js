@@ -3,7 +3,7 @@ const router = express.Router();
 const jobController = require('../controllers/jobController');
 const offerController = require('../controllers/offerController');
 const { authenticate } = require('../middleware/auth');
-const { requireCustomer, requireArtisan } = require('../middleware/roleCheck');
+const { requireCustomer, requireArtisan, requireCustomerOrArtisan } = require('../middleware/roleCheck');
 const { validate, jobSchemas } = require('../middleware/validation');
 const { jobCreationLimiter, searchLimiter } = require('../middleware/rateLimiter');
 
@@ -21,11 +21,11 @@ router.post(
   jobController.createJob
 );
 
-// Get customer's jobs
+// Get my jobs (customer or artisan)
 router.get(
   '/my-jobs',
   authenticate,
-  requireCustomer,
+  requireCustomerOrArtisan,
   jobController.getMyJobs
 );
 

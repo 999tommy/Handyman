@@ -17,12 +17,54 @@ const notificationService = require('./notificationService');
  * @param {Object} jobData 
  * @returns {Promise<Object>}
  */
+/**
+ * Helper to format job response object to match frontend expectations
+ * @param {Object} job 
+ * @returns {Object}
+ */
+function formatJob(job) {
+  if (!job) return null;
+
+  const description = job.description || (typeof job.details === 'string' ? job.details : null) || '';
+  const details = description; // Alias so job.details is never undefined
+
+  const street = job.street || null;
+  const city = job.city || null;
+
+  const address = [street, city].filter(Boolean).join(', ') || null;
+  const location = (street || city || job.latitude || job.longitude) ? {
+    street,
+    city,
+    address,
+    latitude: job.latitude !== undefined && job.latitude !== null ? Number(job.latitude) : null,
+    longitude: job.longitude !== undefined && job.longitude !== null ? Number(job.longitude) : null,
+  } : null;
+
+  return {
+    ...job,
+    description,
+    details, // Alias for description
+    street,
+    city,
+    address,
+    location,
+    category_name: job.category?.name || null,
+  };
+}
+
+/**
+ * Create a new job
+ * @param {string} customerId 
+ * @param {Object} jobData 
+ * @returns {Promise<Object>}
+ */
 async function createJob(customerId, jobData) {
   try {
-    const {
+    let {
       category_id,
       title,
       description,
+      details,
       budget,
       date_preference,
       preferred_date,
@@ -31,11 +73,53 @@ async function createJob(customerId, jobData) {
       needs_specific_time,
       service_type,
       street,
+      street_address,
       city,
+      address,
+      location,
       latitude,
       longitude,
       photos,
     } = jobData;
+
+    // Handle description / details aliases
+    if (!description && typeof details === 'string') {
+      description = details;
+    } else if (!description && typeof details === 'object' && details !== null) {
+      description = details.description || details.details || details.text || null;
+    }
+
+    // Extract street/city/latitude/longitude from location/details/address
+    if (typeof details === 'object' && details !== null) {
+      street = street || details.street || details.street_address || details.address || null;
+      city = city || details.city || null;
+      latitude = latitude !== undefined && latitude !== null ? latitude : details.latitude;
+      longitude = longitude !== undefined && longitude !== null ? longitude : details.longitude;
+    }
+
+    if (typeof location === 'object' && location !== null) {
+      street = street || location.street || location.street_address || location.address || null;
+      city = city || location.city || null;
+      latitude = latitude !== undefined && latitude !== null ? latitude : location.latitude;
+      longitude = longitude !== undefined && longitude !== null ? longitude : location.longitude;
+    } else if (typeof location === 'string' && location.trim()) {
+      address = address || location;
+    }
+
+    if (street_address && !street) {
+      street = street_address;
+    }
+
+    if (address && (!street || !city)) {
+      const parts = address.split(',').map(s => s.trim()).filter(Boolean);
+      if (parts.length > 0 && !street) street = parts[0];
+      if (parts.length > 1 && !city) city = parts[1];
+    }
+
+    // Default title if omitted
+    if (!title) {
+      title = description ? (description.length > 30 ? description.substring(0, 30) + '...' : description) : 'Service Request';
+    }
 
     // Validate date
     if (preferred_date && isDateInPast(preferred_date)) {
@@ -49,7 +133,7 @@ async function createJob(customerId, jobData) {
         customer_id: customerId,
         category_id,
         title,
-        description,
+        description: description || '',
         budget,
         date_preference,
         preferred_date,
@@ -59,8 +143,8 @@ async function createJob(customerId, jobData) {
         service_type,
         street,
         city,
-        latitude,
-        longitude,
+        latitude: latitude || null,
+        longitude: longitude || null,
         geography: latitude && longitude ? `POINT(${longitude} ${latitude})` : null,
         status: JOB_STATUS.POSTED,
       })
@@ -69,7 +153,7 @@ async function createJob(customerId, jobData) {
 
     if (error) {
       logger.error('Job creation error:', error);
-      throw new Error('Failed to create job');
+      throw new Error('Failed to create job: ' + (error.message || 'Unknown error'));
     }
 
     // Insert job photos if provided
@@ -88,7 +172,7 @@ async function createJob(customerId, jobData) {
 
     logger.info(`Job created: ${job.id} by customer ${customerId}`);
 
-    return job;
+    return formatJob(job);
   } catch (error) {
     logger.logError(error, { context: 'createJob' });
     throw error;
@@ -140,7 +224,7 @@ async function getJobById(jobId, userId = null) {
       }
     }
 
-    return job;
+    return formatJob(job);
   } catch (error) {
     logger.logError(error, { context: 'getJobById' });
     throw error;
@@ -155,14 +239,14 @@ async function getJobById(jobId, userId = null) {
  */
 async function getCustomerJobs(customerId, filters = {}) {
   try {
-    const { page = 1, limit = 20, status } = filters;
+    const { page = 1, limit = 20, status } = filters || {};
     const { offset, limit: validLimit } = paginate(page, limit);
 
     let query = supabase
       .from('jobs')
       .select(`
         *,
-        category:categories(name),
+        category:categories(id, name, icon_url),
         photos:job_photos(photo_url),
         assigned_artisan:artisans(
           id,
@@ -191,7 +275,7 @@ async function getCustomerJobs(customerId, filters = {}) {
     }
 
     return {
-      jobs: jobs || [],
+      jobs: (jobs || []).map(formatJob),
       pagination: createPaginationMeta(count, page, validLimit),
     };
   } catch (error) {
@@ -242,7 +326,7 @@ async function browseJobs(artisanId, filters = {}) {
         customer:customers(
           profiles!customers_id_fkey(full_name)
         ),
-        category:categories(name),
+        category:categories(id, name, icon_url),
         photos:job_photos(photo_url)
       `, { count: 'exact' })
       .eq('status', JOB_STATUS.POSTED);
@@ -306,13 +390,13 @@ async function browseJobs(artisanId, filters = {}) {
         : jobs;
 
       return {
-        jobs: filteredJobs,
+        jobs: filteredJobs.map(formatJob),
         pagination: createPaginationMeta(filteredJobs.length, page, validLimit),
       };
     }
 
     return {
-      jobs: jobs || [],
+      jobs: (jobs || []).map(formatJob),
       pagination: createPaginationMeta(count, page, validLimit),
     };
   } catch (error) {
@@ -447,7 +531,7 @@ async function getArtisanJobs(artisanId, filters = {}) {
       .from('jobs')
       .select(`
         *,
-        category:categories(name),
+        category:categories(id, name, icon_url),
         photos:job_photos(photo_url),
         customer:customers(
           id,
@@ -474,7 +558,7 @@ async function getArtisanJobs(artisanId, filters = {}) {
     }
 
     return {
-      jobs: jobs || [],
+      jobs: (jobs || []).map(formatJob),
       pagination: createPaginationMeta(count, page, validLimit),
     };
   } catch (error) {

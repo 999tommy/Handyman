@@ -32,11 +32,14 @@ const getJob = asyncHandler(async (req, res) => {
 });
 
 /**
- * Get customer's jobs
+ * Get user's jobs (customer or artisan)
  * GET /api/jobs/my-jobs
  */
 const getMyJobs = asyncHandler(async (req, res) => {
-  const result = await jobService.getCustomerJobs(req.user.id, req.query);
+  const isArtisan = req.user && req.user.role === 'artisan';
+  const result = isArtisan
+    ? await jobService.getArtisanJobs(req.user.id, req.query)
+    : await jobService.getCustomerJobs(req.user.id, req.query);
 
   res.status(200).json({
     success: true,
