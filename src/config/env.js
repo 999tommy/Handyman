@@ -31,8 +31,18 @@ const config = {
   // CORS
   cors: {
     origin: process.env.CORS_ORIGIN 
-      ? process.env.CORS_ORIGIN.split(',')
-      : ['http://localhost:3000', 'http://localhost:19000', 'http://localhost:8081'],
+      ? process.env.CORS_ORIGIN.split(',').map(o => o.trim().replace(/\/$/, ''))
+      : [
+          'http://localhost:3000',
+          'http://localhost:19000',
+          'http://localhost:19001',
+          'http://localhost:8081',
+          'http://localhost:8082',
+          'http://localhost:5173',
+          'http://127.0.0.1:8081',
+          'http://127.0.0.1:19006',
+          'https://handyman-1-drwc.onrender.com',
+        ],
   },
 
   // SMS

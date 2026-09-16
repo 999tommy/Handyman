@@ -18,8 +18,20 @@ let io;
 function initializeSocket(server) {
   io = new Server(server, {
     cors: {
-      origin: config.cors.origin,
-      methods: ['GET', 'POST'],
+      origin: (origin, callback) => {
+        if (!origin) return callback(null, true);
+        const sanitizeOrigin = (url) => (typeof url === 'string' ? url.trim().replace(/\/$/, '') : url);
+        const cleanOrigin = sanitizeOrigin(origin);
+        const configuredOrigins = (Array.isArray(config.cors.origin) ? config.cors.origin : [config.cors.origin]).map(sanitizeOrigin);
+        if (configuredOrigins.includes('*') || configuredOrigins.includes(cleanOrigin)) {
+          return callback(null, true);
+        }
+        if (/^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$/.test(cleanOrigin)) {
+          return callback(null, true);
+        }
+        return callback(null, true);
+      },
+      methods: ['GET', 'POST', 'OPTIONS'],
       credentials: true,
     },
     transports: ['websocket', 'polling'],

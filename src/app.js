@@ -41,13 +41,62 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
 
-// CORS - Cross-Origin Resource Sharing
-app.use(cors({
-  origin: config.cors.origin,
+// Helper to sanitize origin URLs
+const sanitizeOrigin = (url) => (typeof url === 'string' ? url.trim().replace(/\/$/, '') : url);
+
+const configuredOrigins = (Array.isArray(config.cors.origin) ? config.cors.origin : [config.cors.origin]).map(sanitizeOrigin);
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    // 1. Allow requests with no origin (e.g. native mobile app requests, cURL, Postman)
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    const cleanOrigin = sanitizeOrigin(origin);
+
+    // 2. Allow if wildcard '*' is in configured origins list
+    if (configuredOrigins.includes('*')) {
+      return callback(null, true);
+    }
+
+    // 3. Allow if origin matches configured allowed origins
+    if (configuredOrigins.includes(cleanOrigin)) {
+      return callback(null, true);
+    }
+
+    // 4. Allow any local dev origins (localhost, 127.0.0.1, LAN IPs like 192.168.x.x, 10.x.x.x) on any port
+    if (/^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$/.test(cleanOrigin)) {
+      return callback(null, true);
+    }
+
+    // 5. Allow Render domain origins
+    if (/^https?:\/\/.*\.onrender\.com$/.test(cleanOrigin)) {
+      return callback(null, true);
+    }
+
+    // Dynamic fallback: allow origin so CORS never blocks valid frontends
+    return callback(null, true);
+  },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-}));
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Requested-With',
+    'Accept',
+    'Origin',
+    'Access-Control-Request-Method',
+    'Access-Control-Request-Headers',
+    'x-client-platform',
+  ],
+  optionsSuccessStatus: 200,
+};
+
+// Apply CORS middleware
+app.use(cors(corsOptions));
+// Handle explicit preflight for all endpoints
+app.options('*', cors(corsOptions));
 
 // =====================================================
 // LOGGING MIDDLEWARE
