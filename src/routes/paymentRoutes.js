@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const paymentController = require('../controllers/paymentController');
 const { authenticate } = require('../middleware/auth');
-const { requireCustomer } = require('../middleware/roleCheck');
+const { requireCustomer, requireArtisan } = require('../middleware/roleCheck');
 
 /**
  * Payment Routes
@@ -40,5 +40,21 @@ router.post(
 
 // Get payment history
 router.get('/history', authenticate, paymentController.getPaymentHistory);
+
+// Get artisan wallet balance
+router.get(
+  '/wallet-balance',
+  authenticate,
+  requireArtisan,
+  paymentController.getWalletBalance
+);
+
+// Request bank withdrawal
+router.post(
+  '/withdraw',
+  authenticate,
+  requireArtisan,
+  paymentController.requestWithdrawal
+);
 
 module.exports = router;

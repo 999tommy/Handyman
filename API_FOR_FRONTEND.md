@@ -1162,6 +1162,67 @@ Retrieves historical logs.
   * `dispute.create` / `dispute.created` -> Moves payment to `disputed`, updates job to `disputed`.
   * `dispute.resolve` / `dispute.resolved` -> Resolves payment status based on winner (`merchant_won` -> `held`, `customer_won` -> `refunded`).
 
+### 7. Get Artisan Wallet Balance
+Retrieves the artisan's available balance, held balance, total earned, and saved bank details.
+* **Route:** `GET /api/payments/wallet-balance` (also mounted on `/payments/wallet-balance`)
+* **Auth Required:** Yes (Artisan only)
+* **Response:**
+  ```json
+  {
+    "success": true,
+    "data": {
+      "available_balance": 50000,
+      "pending_balance": 15000,
+      "escrow_held_balance": 15000,
+      "pending_payment_balance": 0,
+      "total_earned": 65000,
+      "total_withdrawn": 0,
+      "currency": "NGN",
+      "bank_details": {
+        "bank_name": "Zenith Bank",
+        "bank_account_number": "1234567890",
+        "account_name": "Jane Smith"
+      }
+    }
+  }
+  ```
+
+### 8. Request Bank Withdrawal
+Submits a payout withdrawal request to the artisan's bank account.
+* **Route:** `POST /api/payments/withdraw` (also mounted on `/payments/withdraw`)
+* **Auth Required:** Yes (Artisan only)
+* **Request Body:**
+  ```json
+  {
+    "amount": 10000,
+    "bank_account_number": "1234567890",
+    "bank_name": "Zenith Bank",
+    "account_name": "Jane Smith"
+  }
+  ```
+  *Note:* If `bank_name` and `bank_account_number` are already saved on the artisan's profile, they are optional in the request body. Minimum withdrawal is ₦1,000.
+* **Response:**
+  ```json
+  {
+    "success": true,
+    "data": {
+      "message": "Withdrawal request submitted successfully",
+      "withdrawal": {
+        "id": "wth-uuid",
+        "amount": 10000,
+        "currency": "NGN",
+        "status": "pending",
+        "reference": "WTH_1700000000000_abcd",
+        "bank_name": "Zenith Bank",
+        "bank_account_number": "1234567890",
+        "account_name": "Jane Smith",
+        "created_at": "2026-06-05T10:00:00.000Z"
+      },
+      "available_balance_remaining": 40000
+    }
+  }
+  ```
+
 ---
 
 ## ⭐ Reviews & Ratings
@@ -1353,16 +1414,22 @@ socket.on('connect', () => {
   ```
 
 * **Send Message:** (Saves message to DB and emits it to all room participants).
+  Supports **both** the Socket.io ACK Callback pattern and the named `message:sent` event:
   ```javascript
+  // Pattern 1: ACK Callback (Recommended)
   socket.emit('chat:message', {
     conversation_id: 'conversation-uuid',
     content: 'Are you on your way?',
     message_type: 'text' // or 'image'
+  }, (response) => {
+    // response: { success: true, message_id: 'message-uuid', data: messageObj }
+    console.log('Ack received:', response);
   });
-  ```
-  *Server Acknowledgment:* Emits `message:sent` back to the sender:
-  ```json
-  { "message_id": "message-uuid" }
+
+  // Pattern 2: Named Event Listener
+  socket.on('message:sent', ({ message_id, data }) => {
+    console.log('Sent acknowledgment for message:', message_id);
+  });
   ```
 
 * **Send Typing Indicator:** Broadcasts to other participants in the conversation.

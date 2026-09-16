@@ -88,6 +88,32 @@ const getPaymentHistory = asyncHandler(async (req, res) => {
   });
 });
 
+/**
+ * Get artisan wallet balance
+ * GET /api/payments/wallet-balance
+ */
+const getWalletBalance = asyncHandler(async (req, res) => {
+  const result = await paymentService.getWalletBalance(req.user.id);
+
+  res.status(200).json({
+    success: true,
+    data: result,
+  });
+});
+
+/**
+ * Request artisan bank withdrawal
+ * POST /api/payments/withdraw
+ */
+const requestWithdrawal = asyncHandler(async (req, res) => {
+  const result = await paymentService.requestWithdrawal(req.user.id, req.body);
+
+  res.status(200).json({
+    success: true,
+    data: result,
+  });
+});
+
 module.exports = {
   handleWebhook,
   initiatePayment,
@@ -95,4 +121,6 @@ module.exports = {
   releasePayment,
   requestRefund,
   getPaymentHistory,
+  getWalletBalance,
+  requestWithdrawal,
 };

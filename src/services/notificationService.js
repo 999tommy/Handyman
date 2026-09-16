@@ -62,7 +62,7 @@ async function sendNotification(userId, type, title, body, metadata = null) {
 }
 
 /**
- * Send push notification via FCM
+ * Send push notification via Expo Push API or FCM
  * @param {string} userId 
  * @param {string} title 
  * @param {string} body 
@@ -70,11 +70,6 @@ async function sendNotification(userId, type, title, body, metadata = null) {
  */
 async function sendPushNotification(userId, title, body, data = null) {
   try {
-    if (!config.firebase.serverKey) {
-      logger.warn('Firebase server key not configured');
-      return;
-    }
-
     // Get user's device tokens
     const { data: tokens, error } = await supabase
       .from('device_tokens')
@@ -90,6 +85,44 @@ async function sendPushNotification(userId, title, body, data = null) {
     // Send to each device
     const pushPromises = tokens.map(async ({ token, platform }) => {
       try {
+        const isExpoToken = typeof token === 'string' && (
+          token.startsWith('ExponentPushToken[') ||
+          token.startsWith('ExpoPushToken[') ||
+          token.includes('ExponentPushToken')
+        );
+
+        if (isExpoToken) {
+          // Send via Expo Push API (works with Expo Go on iOS & Android)
+          const expoResponse = await axios.post(
+            'https://exp.host/--/api/v2/push/send',
+            {
+              to: token,
+              title,
+              body,
+              data: data || {},
+              sound: 'default',
+              priority: 'high',
+              channelId: 'default',
+            },
+            {
+              headers: {
+                'Accept': 'application/json',
+                'Accept-Encoding': 'gzip, deflate',
+                'Content-Type': 'application/json',
+              },
+            }
+          );
+
+          logger.debug(`Expo push notification sent to ${platform} token`);
+          return expoResponse.data;
+        }
+
+        // Standard FCM push notification
+        if (!config.firebase.serverKey) {
+          logger.debug('FCM push skipped: Firebase server key not configured');
+          return null;
+        }
+
         const response = await axios.post(
           'https://fcm.googleapis.com/fcm/send',
           {
@@ -110,11 +143,11 @@ async function sendPushNotification(userId, title, body, data = null) {
           }
         );
 
-        logger.debug(`Push notification sent to ${platform} device`);
+        logger.debug(`Push notification sent to ${platform} device via FCM`);
         return response.data;
       } catch (error) {
-        // If token is invalid, mark as inactive
-        if (error.response?.status === 404) {
+        // If token is invalid or unregistered, mark as inactive
+        if (error.response?.status === 404 || error.response?.data?.details?.error === 'DeviceNotRegistered') {
           await supabase
             .from('device_tokens')
             .update({ is_active: false })

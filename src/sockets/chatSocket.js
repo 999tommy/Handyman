@@ -58,24 +58,42 @@ function registerChatHandlers(io, socket) {
   });
 
   /**
-   * Send message (handled via REST API, but emit to room)
+   * Send message (handles persistence and broadcasts to conversation room)
+   * Supports both ACK callback pattern and named message:sent event
    */
-  socket.on(SOCKET_EVENTS.CHAT_MESSAGE, async (data) => {
+  socket.on(SOCKET_EVENTS.CHAT_MESSAGE, async (data, callback) => {
     try {
-      const { conversation_id, content, message_type = 'text' } = data;
+      const { conversation_id, content, message_type = 'text' } = data || {};
 
-      // Send message via service (for persistence)
+      if (!conversation_id || !content) {
+        const errMessage = 'conversation_id and content are required';
+        if (typeof callback === 'function') {
+          callback({ success: false, error: errMessage });
+        }
+        socket.emit(SOCKET_EVENTS.ERROR, { message: errMessage });
+        return;
+      }
+
+      // Send message via service (for persistence and room broadcast)
       const message = await chatService.sendMessage(
         conversation_id,
         socket.userId,
         { content, message_type }
       );
 
-      // Message is already emitted by service, but we can emit acknowledgment
-      socket.emit('message:sent', { message_id: message.id });
+      // 1. Socket.io ACK Callback pattern (used by useSocket.ts)
+      if (typeof callback === 'function') {
+        callback({ success: true, message_id: message.id, data: message });
+      }
+
+      // 2. Named event acknowledgment (for backward compatibility)
+      socket.emit('message:sent', { message_id: message.id, data: message });
     } catch (error) {
       logger.error('Chat message error:', error);
-      socket.emit(SOCKET_EVENTS.ERROR, { message: 'Failed to send message' });
+      if (typeof callback === 'function') {
+        callback({ success: false, error: error.message || 'Failed to send message' });
+      }
+      socket.emit(SOCKET_EVENTS.ERROR, { message: error.message || 'Failed to send message' });
     }
   });
 

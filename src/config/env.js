@@ -58,7 +58,7 @@ const config = {
   paystack: {
     secretKey: process.env.PAYSTACK_SECRET_KEY,
     publicKey: process.env.PAYSTACK_PUBLIC_KEY,
-    callbackUrl: process.env.PAYSTACK_CALLBACK_URL,
+    callbackUrl: process.env.PAYSTACK_CALLBACK_URL || 'handyman://payment/callback',
     mode: process.env.PAYSTACK_MODE || 'test',
   },
 
