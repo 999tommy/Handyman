@@ -20,7 +20,9 @@ const uploadMedia = asyncHandler(async (req, res) => {
     'profile_picture': 'profile-pictures',
     'government_id': 'government-ids',
     'portfolio_image': 'portfolio-images', // single
-    'portfolio_images': 'portfolio-images' // multiple
+    'portfolio_images': 'portfolio-images', // multiple
+    'job_photo': 'job-photos', // single
+    'job_photos': 'job-photos' // multiple
   };
 
   const bucket = allowedTypes[type];
@@ -28,12 +30,12 @@ const uploadMedia = asyncHandler(async (req, res) => {
   if (!bucket) {
     return res.status(400).json({
       success: false,
-      error: { message: 'Invalid or missing "type" query parameter. Valid types are: profile_picture, government_id, portfolio_image, portfolio_images' },
+      error: { message: 'Invalid or missing "type" query parameter. Valid types are: profile_picture, government_id, portfolio_image, portfolio_images, job_photo, job_photos' },
     });
   }
 
   // Handle multiple files
-  if (type === 'portfolio_images') {
+  if (type === 'portfolio_images' || type === 'job_photos') {
     const files = req.files && req.files['files'] ? req.files['files'] : null;
     
     if (!files || files.length === 0) {

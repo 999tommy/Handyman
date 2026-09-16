@@ -14,7 +14,7 @@ const router = express.Router();
 
 /**
  * Unified Upload Endpoint
- * POST /api/upload?type=profile_picture|government_id|portfolio_images
+ * POST /api/upload?type=profile_picture|government_id|portfolio_image|portfolio_images|job_photo|job_photos
  */
 router.post(
   '/',

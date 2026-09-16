@@ -1291,6 +1291,8 @@ Files must be uploaded directly to Supabase Storage *before* submitting them in 
 | `government_id` | `file` | `government-ids` | Single File | Used for artisan identity verification documents. Private access. |
 | `portfolio_image` | `file` | `portfolio-images` | Single File | Individual file portfolio upload. Public access. |
 | `portfolio_images` | `files` | `portfolio-images` | Multiple Files (max 10) | Bulk portfolio upload. Public access. |
+| `job_photo` | `file` | `job-photos` | Single File | Used for job post attachment photos. Public access. |
+| `job_photos` | `files` | `job-photos` | Multiple Files (max 5) | Bulk job post attachment photos upload. Public access. |
 
 ### Response Examples
 * **Single File Upload (Success):**
