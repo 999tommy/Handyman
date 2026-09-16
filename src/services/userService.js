@@ -162,7 +162,11 @@ async function searchArtisans(filters = {}) {
       sort = 'rating',
       page = 1,
       limit = 20,
+      q,
+      search,
     } = filters;
+
+    const searchTerm = (q || search || '').trim().toLowerCase();
 
     const { offset, limit: validLimit } = paginate(page, limit);
 
@@ -191,8 +195,16 @@ async function searchArtisans(filters = {}) {
       throw new Error('Failed to search artisans');
     }
 
-    // Filter by location if provided
+    // Filter by text search if provided
     let filteredArtisans = artisans || [];
+    if (searchTerm) {
+      filteredArtisans = filteredArtisans.filter(artisan => {
+        const fullName = artisan.profile?.full_name?.toLowerCase() || '';
+        const profession = artisan.profession?.toLowerCase() || '';
+        const tagline = artisan.tagline?.toLowerCase() || '';
+        return fullName.includes(searchTerm) || profession.includes(searchTerm) || tagline.includes(searchTerm);
+      });
+    }
     if (lat && lng && artisans) {
       filteredArtisans = artisans
         .map(artisan => {
