@@ -32,6 +32,9 @@ const categoryRoutes = require('./routes/categoryRoutes');
 
 const app = express();
 
+// Trust reverse proxy (required for Render / Heroku / load balancers to correctly identify client IP for rate limiting)
+app.set('trust proxy', 1);
+
 // =====================================================
 // SECURITY MIDDLEWARE
 // =====================================================

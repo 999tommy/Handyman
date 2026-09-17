@@ -268,7 +268,7 @@ const offerSchemas = {
     body: Joi.object({
       job_id: uuidSchema.required(),
       proposed_price: Joi.number().min(1000).required(),
-      cover_letter: Joi.string().min(50).max(1000).required(),
+      cover_letter: Joi.string().min(10).max(1000).required(),
       estimated_duration: Joi.string().max(50).optional(),
     }),
   }),
@@ -276,7 +276,7 @@ const offerSchemas = {
   updateOffer: Joi.object({
     body: Joi.object({
       proposed_price: Joi.number().min(1000).optional(),
-      cover_letter: Joi.string().min(50).max(1000).optional(),
+      cover_letter: Joi.string().min(10).max(1000).optional(),
       estimated_duration: Joi.string().max(50).optional(),
     }),
   }),

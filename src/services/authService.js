@@ -96,8 +96,10 @@ async function registerCustomer(userData) {
       .insert({ id: userId });
 
     if (customerError) {
+      await supabaseAdmin.from('profiles').delete().eq('id', userId);
+      await supabaseAdmin.auth.admin.deleteUser(userId);
       logger.error('Customer record error:', customerError);
-      throw new Error('Failed to create customer record');
+      throw new Error(`Failed to create customer record: ${customerError.message || ''}`);
     }
 
     // NO SMS verification for customers
@@ -166,6 +168,18 @@ async function registerArtisan(artisanData) {
     const emailTaken = authUsers?.some(u => u.email === email);
     if (emailTaken) {
       throw new ConflictError('Email already registered');
+    }
+
+    // Check if phone number already exists
+    const normalizedPhone = formatPhoneToInternational(phone_number);
+    const { data: existingPhone } = await supabaseAdmin
+      .from('profiles')
+      .select('phone_number')
+      .eq('phone_number', normalizedPhone)
+      .maybeSingle();
+
+    if (existingPhone) {
+      throw new ConflictError('Phone number already registered');
     }
 
     // Resolve category ID if provided by name
