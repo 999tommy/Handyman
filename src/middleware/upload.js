@@ -16,13 +16,49 @@ const logger = require('../utils/logger');
  */
 
 /**
- * File filter - only allow images
+ * Helper to determine allowed MIME types based on upload query type
+ */
+const getAllowedTypes = (req) => {
+  const type = req.query?.type;
+  if (type === 'government_id') {
+    return [
+      ...UPLOAD_LIMITS.ALLOWED_IMAGE_TYPES,
+      ...(UPLOAD_LIMITS.ALLOWED_DOCUMENT_TYPES || ['application/pdf']),
+    ];
+  }
+  return UPLOAD_LIMITS.ALLOWED_IMAGE_TYPES;
+};
+
+/**
+ * File filter - allows images (JPEG, PNG, WebP, HEIC, HEIF), plus PDF for government IDs
  */
 const fileFilter = (req, file, cb) => {
-  if (UPLOAD_LIMITS.ALLOWED_IMAGE_TYPES.includes(file.mimetype)) {
+  const isGovernmentId = req.query?.type === 'government_id';
+  const allowedTypes = getAllowedTypes(req);
+  const mimetype = (file.mimetype || '').toLowerCase();
+
+  // Handle extension fallback for clients/devices sending generic MIME types like application/octet-stream
+  const ext = path.extname(file.originalname || '').toLowerCase();
+  const isPdfExt = ext === '.pdf';
+  const isImageExt = ['.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif'].includes(ext);
+
+  if (allowedTypes.includes(mimetype)) {
+    cb(null, true);
+  } else if (isGovernmentId && isPdfExt) {
+    file.mimetype = 'application/pdf';
+    cb(null, true);
+  } else if (isImageExt) {
+    if (ext === '.heic') file.mimetype = 'image/heic';
+    else if (ext === '.heif') file.mimetype = 'image/heif';
+    else if (ext === '.png') file.mimetype = 'image/png';
+    else if (ext === '.webp') file.mimetype = 'image/webp';
+    else file.mimetype = 'image/jpeg';
     cb(null, true);
   } else {
-    cb(new ValidationError('Invalid file type. Only JPEG, PNG, and WebP images are allowed'), false);
+    const errorMsg = isGovernmentId
+      ? 'Invalid file type. Only JPEG, PNG, WebP, HEIC, HEIF images and PDF documents are allowed'
+      : 'Invalid file type. Only JPEG, PNG, WebP, HEIC, and HEIF images are allowed';
+    cb(new ValidationError(errorMsg), false);
   }
 };
 
@@ -87,13 +123,26 @@ async function uploadToSupabase(file, bucket = 'uploads', userId = null) {
       uploadPayload = new Uint8Array(fileBuffer).buffer;
     }
 
+    // Determine contentType
+    let contentType = file.mimetype;
+    if (!contentType || contentType === 'application/octet-stream' || contentType === 'auto') {
+      const lowerExt = ext.toLowerCase();
+      if (lowerExt === '.pdf') contentType = 'application/pdf';
+      else if (lowerExt === '.heic') contentType = 'image/heic';
+      else if (lowerExt === '.heif') contentType = 'image/heif';
+      else if (lowerExt === '.png') contentType = 'image/png';
+      else if (lowerExt === '.webp') contentType = 'image/webp';
+      else if (lowerExt === '.jpg' || lowerExt === '.jpeg') contentType = 'image/jpeg';
+      else contentType = 'auto';
+    }
+
     // Upload to Supabase Storage using Admin client to bypass RLS
     // Since registration uploads happen *before* auth tokens exist, 
     // the anon client would violently trigger RLS rejections (throwing 500s).
     const { data, error } = await supabaseAdmin.storage
       .from(bucket)
       .upload(filePath, uploadPayload, {
-        contentType: file.mimetype || 'auto',
+        contentType,
         cacheControl: '3600',
         upsert: false,
       });
@@ -154,7 +203,7 @@ function handleSingleUpload(fieldName, bucket = 'uploads') {
 
         try {
           // Upload to storage
-          const url = await uploadToSupabase(req.file.buffer, req.file.originalname, bucket);
+          const url = await uploadToSupabase(req.file, bucket);
           
           // Attach URL to request body
           req.body[`${fieldName}_url`] = url;
@@ -200,7 +249,7 @@ function handleMultipleUpload(fieldName, maxCount = 5, bucket = 'uploads') {
         try {
           // Upload all files
           const uploadPromises = req.files.map(file =>
-            uploadToSupabase(file.buffer, file.originalname, bucket)
+            uploadToSupabase(file, bucket)
           );
           
           const urls = await Promise.all(uploadPromises);

@@ -157,7 +157,18 @@ const UPLOAD_LIMITS = {
   MAX_FILE_SIZE: 5 * 1024 * 1024, // 5MB
   MAX_PHOTOS_PER_JOB: 5,
   MAX_PORTFOLIO_IMAGES: 10,
-  ALLOWED_IMAGE_TYPES: ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'],
+  ALLOWED_IMAGE_TYPES: [
+    'image/jpeg',
+    'image/jpg',
+    'image/png',
+    'image/webp',
+    'image/heic',
+    'image/heif',
+    'image/x-heic',
+  ],
+  ALLOWED_DOCUMENT_TYPES: [
+    'application/pdf',
+  ],
 };
 
 // Pagination defaults
