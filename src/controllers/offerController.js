@@ -23,11 +23,12 @@ const createOffer = asyncHandler(async (req, res) => {
  * GET /api/jobs/:jobId/offers
  */
 const getJobOffers = asyncHandler(async (req, res) => {
-  const offers = await offerService.getJobOffers(req.params.jobId, req.user.id);
+  const result = await offerService.getJobOffers(req.params.jobId, req.user.id);
 
   res.status(200).json({
     success: true,
-    data: offers,
+    data: result.offers,
+    total_offers: result.total_offers,
   });
 });
 

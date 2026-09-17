@@ -19,6 +19,8 @@ const chatService = require('./chatService');
  */
 async function createOffer(artisanId, offerData) {
   try {
+    // Explicitly destructure to prevent artisan_id body injection –
+    // the artisan identity always comes from the auth token (req.user.id).
     const { job_id, proposed_price, cover_letter, estimated_duration } = offerData;
 
     // Verify job exists and is open for offers
@@ -42,7 +44,7 @@ async function createOffer(artisanId, offerData) {
       .select('id')
       .eq('job_id', job_id)
       .eq('artisan_id', artisanId)
-      .single();
+      .maybeSingle();
 
     if (existingOffer) {
       throw new ConflictError('You have already submitted an offer for this job');
@@ -67,17 +69,36 @@ async function createOffer(artisanId, offerData) {
       throw new Error('Failed to create offer');
     }
 
-    // Update job offer count
-    await supabase.rpc('increment_job_offers', { job_id });
+    // Increment total_offers on the job row using a safe read-then-update.
+    // This avoids depending on a Postgres RPC function that may not exist.
+    try {
+      const { data: jobRow } = await supabase
+        .from('jobs')
+        .select('total_offers')
+        .eq('id', job_id)
+        .single();
+      await supabase
+        .from('jobs')
+        .update({ total_offers: (jobRow?.total_offers || 0) + 1 })
+        .eq('id', job_id);
+    } catch (countErr) {
+      logger.warn(`total_offers increment failed for job ${job_id}: ${countErr.message}`);
+    }
 
-    // Notify customer
-    await notificationService.sendNotification(
-      job.customer_id,
-      'offer_received',
-      'New Offer Received',
-      `You received a new offer for "${job.title || 'Untitled'}"`,
-      { job_id, offer_id: offer.id }
-    );
+    // Notify customer — wrapped in try/catch so a notification failure
+    // NEVER causes the offer submission itself to return a 500.
+    try {
+      await notificationService.sendNotification(
+        job.customer_id,
+        'offer_received',
+        'New Offer Received',
+        `You received a new offer for "${job.title || 'Untitled'}"`,
+        { job_id, offer_id: offer.id }
+      );
+    } catch (notifError) {
+      // Log but do not propagate — the offer was already saved successfully.
+      logger.warn(`Notification failed for offer ${offer.id}: ${notifError.message}`);
+    }
 
     logger.info(`Offer created: ${offer.id} by artisan ${artisanId} for job ${job_id}`);
 
@@ -99,7 +120,7 @@ async function getJobOffers(jobId, userId) {
     // Verify user has access to view offers
     const { data: job } = await supabase
       .from('jobs')
-      .select('customer_id')
+      .select('customer_id, total_offers')
       .eq('id', jobId)
       .single();
 
@@ -125,7 +146,9 @@ async function getJobOffers(jobId, userId) {
       .eq('job_id', jobId)
       .order('created_at', { ascending: false });
 
-    // If not the customer, only show user's own offer
+    // Non-customer (artisan): only show their own offer.
+    // Also include total_offers from the job so the UI can display
+    // "X artisans have bid" without exposing competitor bids.
     if (!isCustomer) {
       query = query.eq('artisan_id', userId);
     }
@@ -137,7 +160,12 @@ async function getJobOffers(jobId, userId) {
       throw new Error('Failed to fetch offers');
     }
 
-    return offers || [];
+    return {
+      offers: offers || [],
+      // Expose total bid count for all callers so artisans can see
+      // "5 artisans have bid" without seeing competitor details.
+      total_offers: job.total_offers || 0,
+    };
   } catch (error) {
     logger.logError(error, { context: 'getJobOffers' });
     throw error;
@@ -201,14 +229,18 @@ async function acceptOffer(offerId, customerId) {
       offer.artisan_id
     );
 
-    // Notify artisan
-    await notificationService.sendNotification(
-      offer.artisan_id,
-      'offer_accepted',
-      'Offer Accepted! 🎉',
-      `Your offer for "${offer.job.title || 'Untitled'}" has been accepted`,
-      { job_id: offer.job_id, conversation_id: conversation.id }
-    );
+    // Notify artisan — isolated so a notification failure never rolls back acceptance
+    try {
+      await notificationService.sendNotification(
+        offer.artisan_id,
+        'offer_accepted',
+        'Offer Accepted! 🎉',
+        `Your offer for "${offer.job.title || 'Untitled'}" has been accepted`,
+        { job_id: offer.job_id, conversation_id: conversation.id }
+      );
+    } catch (notifError) {
+      logger.warn(`Notification failed for accepted offer ${offerId}: ${notifError.message}`);
+    }
 
     logger.info(`Offer accepted: ${offerId}`);
 
