@@ -36,6 +36,14 @@ router.post(
   authController.login
 );
 
+// Firebase phone login (OTP handled by Firebase on the frontend)
+router.post(
+  '/phone-login',
+  authLimiter,
+  validate(authSchemas.phoneLogin),
+  authController.phoneLogin
+);
+
 // Send verification code
 router.post(
   '/send-verification-code',

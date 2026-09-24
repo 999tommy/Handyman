@@ -79,6 +79,21 @@ const verifyPhone = asyncHandler(async (req, res) => {
 });
 
 /**
+ * Phone Login via Africa's Talking OTP
+ * POST /api/auth/phone-login
+ * Body: { phone_number, code }
+ */
+const phoneLogin = asyncHandler(async (req, res) => {
+  const { phone_number, code } = req.body;
+  const result = await authService.phoneLogin(phone_number, code);
+
+  res.status(200).json({
+    success: true,
+    data: result,
+  });
+});
+
+/**
  * Refresh token
  * POST /api/auth/refresh
  */
@@ -96,6 +111,7 @@ module.exports = {
   registerCustomer,
   registerArtisan,
   login,
+  phoneLogin,
   sendVerificationCode,
   verifyPhone,
   refreshToken,

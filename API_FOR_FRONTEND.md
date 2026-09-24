@@ -27,10 +27,11 @@ All phone number inputs are normalized using the following rule before hitting v
 > [!NOTE]
 > All APIs expecting or returning a phone number will require or produce the normalized international format (`+234...`).
 
-### 3. SMS OTP Verification (Development Mode)
-* **OTP Expiration:** 10 minutes.
-* **Rate Limits:** Maximum 5 attempts per phone number.
-* **Development Constant:** In development mode (`NODE_ENV=development`), the generated SMS OTP code is hardcoded to **`666666`**. It will also be returned directly in the response payload for easy testing.
+### 3. SMS OTP / Phone Number Verification
+Two approaches are supported for verifying phone numbers:
+
+* **Firebase Phone Authentication (recommended for phone-first signup/login):** The frontend uses the Firebase Auth SDK (`signInWithPhoneNumber`) — Firebase sends the OTP SMS directly to the phone. After the user completes the phone challenge, exchange the resulting Firebase ID token for a Supabase session by calling `POST /api/auth/phone-login` (see the Authentication Endpoints section below). No backend SMS provider configuration is required for this flow.
+* **Legacy backend-generated OTP:** A random 6-digit code expires after 10 minutes with a maximum of 5 verification attempts per phone number. The code is no longer hardcoded; in development mode (`NODE_ENV=development`) it is returned directly in the `send-verification-code` response for easy testing.
 
 ### 4. Authenticated Request Header
 Protected routes require the Supabase JWT access token passed in the `Authorization` header:
@@ -339,6 +340,79 @@ Logs in any user role.
         "refresh_token": "refresh-token-string",
         "expires_in": 3600
       }
+    }
+  }
+  ```
+
+### 5.5 Firebase Phone Login (OTP)
+Allows a user to sign in with their phone number using Firebase Phone Authentication. The OTP SMS is sent and verified on the frontend entirely by Firebase; this endpoint verifies the resulting Firebase ID token and exchanges it for a Supabase session (finding/creating the user by phone number automatically).
+
+* **Route:** `POST /api/auth/phone-login`
+* **Auth Required:** No
+* **Request Body:**
+  ```json
+  {
+    "id_token": "firebase-id-token-from-frontend"
+  }
+  ```
+* **Frontend Flow (Firebase Web SDK):**
+  ```javascript
+  import { getAuth, RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
+
+  const auth = getAuth();
+  auth.useDeviceLanguage(); // ensure SMS locale matches the user's device
+
+  const appVerifier = new RecaptchaVerifier(auth, 'recaptcha-container');
+  const confirmation = await signInWithPhoneNumber(auth, '+2348012345678', appVerifier);
+
+  const code = await promptForOtpCode(); // code received via SMS
+  const result = await confirmation.confirm(code);
+
+  const { idToken } = await result.user.getIdToken();
+  // Send idToken to POST /api/auth/phone-login
+  ```
+* **Response (Success):**
+  ```json
+  {
+    "success": true,
+    "data": {
+      "session": {
+        "access_token": "supabase-access-token",
+        "refresh_token": "supabase-refresh-token",
+        "expires_in": 3600,
+        "token_type": "bearer",
+        "user": {
+          "id": "user-uuid",
+          "email": "firebaseUid@phone.app",
+          "phone": "+2348012345678"
+        }
+      },
+      "user": {
+        "id": "user-uuid",
+        "email": "firebaseUid@phone.app",
+        "role": "customer",
+        "phone_number": "+2348012345678",
+        "phone_verified": true,
+        "profile": {
+          "id": "user-uuid",
+          "role": "customer",
+          "full_name": "",
+          "phone_number": "+2348012345678",
+          "phone_verified": true
+        }
+      }
+    }
+  }
+  ```
+  > [!NOTE]
+  > New phone-login users are auto-created with the `customer` role and `phone_verified: true`. If the phone number already belongs to an existing profile (e.g. an artisan who registered by email), the existing account is used instead.
+* **Response (Error):**
+  ```json
+  {
+    "success": false,
+    "error": {
+      "code": "UNAUTHORIZED",
+      "message": "Invalid or expired Firebase ID token"
     }
   }
   ```

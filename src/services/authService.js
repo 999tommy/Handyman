@@ -1,4 +1,6 @@
 const { supabase, supabaseAdmin, supabaseAnon } = require('../config/supabase');
+
+const config = require('../config/env');
 const { ConflictError, UnauthorizedError, ValidationError } = require('../middleware/errorHandler');
 const { USER_ROLES } = require('../utils/constants');
 const { generateVerificationCode, formatPhoneToInternational } = require('../utils/helpers');
@@ -541,6 +543,199 @@ async function verifyPhone(phoneNumber, code) {
 }
 
 /**
+ * Phone Login via Africa's Talking OTP
+ *
+ * The frontend:
+ *   1. Calls POST /api/auth/send-verification-code  { phone_number }
+ *   2. User receives SMS code
+ *   3. Calls POST /api/auth/phone-login             { phone_number, code }
+ *   4. Receives { session, user }
+ *
+ * @param {string} phoneNumber - E.164 phone number (+2347XXXXXXXXX)
+ * @param {string} code        - 6-digit OTP the user typed
+ * @returns {Promise<Object>}  { session, user }
+ */
+async function phoneLogin(phoneNumber, code) {
+  if (!phoneNumber || !code) {
+    throw new ValidationError('phone_number and code are required');
+  }
+
+  const formattedPhone = formatPhoneToInternational(phoneNumber);
+
+  // 1. Verify the OTP (same logic as verifyPhone)
+  const { data: verification, error: fetchError } = await supabaseAdmin
+    .from('phone_verifications')
+    .select('*')
+    .eq('phone_number', formattedPhone)
+    .single();
+
+  if (fetchError || !verification) {
+    throw new ValidationError('No verification code found for this number. Please request a new one.');
+  }
+
+  if (new Date(verification.expires_at) < new Date()) {
+    throw new ValidationError('Verification code has expired. Please request a new one.');
+  }
+
+  if (verification.attempts >= 5) {
+    throw new ValidationError('Too many incorrect attempts. Please request a new code.');
+  }
+
+  if (verification.code !== code) {
+    await supabaseAdmin
+      .from('phone_verifications')
+      .update({ attempts: verification.attempts + 1 })
+      .eq('phone_number', formattedPhone);
+    throw new ValidationError('Invalid verification code.');
+  }
+
+  // OTP correct — clean up
+  await supabaseAdmin
+    .from('phone_verifications')
+    .delete()
+    .eq('phone_number', formattedPhone);
+
+  // 2. Find or create the Supabase user for this phone number
+  let supabaseUser = null;
+  let profile = null;
+
+  const { data: existingProfile, error: profileQueryError } = await supabaseAdmin
+    .from('profiles')
+    .select('*')
+    .eq('phone_number', formattedPhone)
+    .maybeSingle();
+
+  if (profileQueryError) {
+    logger.error('Profile lookup error:', profileQueryError);
+    throw new Error('Failed to look up phone number');
+  }
+
+  if (existingProfile) {
+    profile = existingProfile;
+    const { data: userData } = await supabaseAdmin.auth.admin.getUserById(existingProfile.id);
+    if (userData?.user) supabaseUser = userData.user;
+  }
+
+  // 3. Create the user if first-time login
+  const syntheticEmail = `phone_${formattedPhone.replace('+', '')}@handyman.app`;
+  const internalPassword = buildAtInternalPassword(formattedPhone);
+
+  if (!supabaseUser) {
+    const { data: authData, error: createError } = await supabaseAdmin.auth.admin.createUser({
+      phone: formattedPhone,
+      email: syntheticEmail,
+      password: internalPassword,
+      phone_confirm: true,
+      email_confirm: true,
+    });
+
+    if (createError) {
+      logger.error('Supabase user creation error:', createError);
+      throw new Error('Failed to create user account');
+    }
+
+    supabaseUser = authData.user;
+    profile = await createPhoneLoginProfile(supabaseUser.id, formattedPhone);
+
+    if (!profile) {
+      throw new Error('Failed to create user profile');
+    }
+  } else {
+    // Ensure the internal password is always fresh (rotated on each login)
+    await supabaseAdmin.auth.admin.updateUserById(supabaseUser.id, {
+      password: internalPassword,
+    });
+
+    // Mark phone as verified if not already
+    if (!profile?.phone_verified) {
+      await supabaseAdmin
+        .from('profiles')
+        .update({ phone_verified: true })
+        .eq('id', supabaseUser.id);
+      if (profile) profile.phone_verified = true;
+    }
+  }
+
+  // 4. Sign in to get a Supabase session
+  const { data: sessionData, error: sessionError } = await supabaseAnon.auth.signInWithPassword({
+    email: supabaseUser.email || syntheticEmail,
+    password: internalPassword,
+  });
+
+  if (sessionError) {
+    logger.error('Session creation error:', sessionError);
+    throw new Error('Failed to create session');
+  }
+
+  logger.info(`Phone login successful: ${formattedPhone}`);
+
+  return {
+    session: sessionData.session,
+    user: {
+      id: supabaseUser.id,
+      email: supabaseUser.email,
+      role: profile?.role || USER_ROLES.CUSTOMER,
+      phone_number: formattedPhone,
+      phone_verified: true,
+      ...(profile ? { profile } : {}),
+    },
+  };
+}
+
+/**
+ * Create the profiles + customers rows for a first-time phone-login user.
+ * Defaults to the customer role.
+ * @param {string} userId
+ * @param {string} phoneNumber - E.164 format
+ * @returns {Promise<Object|null>}
+ */
+async function createPhoneLoginProfile(userId, phoneNumber) {
+  const profileData = {
+    id: userId,
+    role: USER_ROLES.CUSTOMER,
+    full_name: '',
+    phone_number: phoneNumber,
+    phone_verified: true,
+  };
+
+  const { error: profileError } = await supabaseAdmin
+    .from('profiles')
+    .insert(profileData);
+
+  if (profileError) {
+    await supabaseAdmin.auth.admin.deleteUser(userId);
+    logger.error('Profile creation error for phone user:', profileError);
+    return null;
+  }
+
+  const { error: customerError } = await supabaseAdmin
+    .from('customers')
+    .insert({ id: userId });
+
+  if (customerError) {
+    await supabaseAdmin.from('profiles').delete().eq('id', userId);
+    await supabaseAdmin.auth.admin.deleteUser(userId);
+    logger.error('Customer record error for phone user:', customerError);
+    return null;
+  }
+
+  return profileData;
+}
+
+/**
+ * Deterministic internal password for AT phone-login users.
+ * SHA-256 hashed so it always stays within Supabase's 72-char password limit.
+ * @param {string} phoneNumber - E.164 phone number
+ * @returns {string}
+ */
+function buildAtInternalPassword(phoneNumber) {
+  const crypto = require('crypto');
+  const secret = config.internalAuthSecret || 'handyman-phone-auth-pepper';
+  return crypto.createHmac('sha256', secret).update(phoneNumber).digest('hex');
+}
+
+
+/**
  * Refresh access token
  * @param {string} refreshToken 
  * @returns {Promise<Object>}
@@ -568,6 +763,7 @@ module.exports = {
   registerCustomer,
   registerArtisan,
   login,
+  phoneLogin,
   sendPhoneVerificationCode,
   verifyPhone,
   refreshAccessToken,

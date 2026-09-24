@@ -168,6 +168,13 @@ const authSchemas = {
     }),
   }),
 
+  phoneLogin: Joi.object({
+    body: Joi.object({
+      phone_number: phoneSchema.required(),
+      code: Joi.string().length(6).pattern(/^\d+$/).required(),
+    }),
+  }),
+
   verifyPhone: Joi.object({
     body: Joi.object({
       phone_number: phoneSchema.required(),
@@ -308,6 +315,13 @@ const locationSchemas = {
  * Chat validation schemas
  */
 const chatSchemas = {
+  createConversation: Joi.object({
+    body: Joi.object({
+      artisan_id: uuidSchema.required(),
+      job_id: uuidSchema.optional().allow(null, ''),
+    }),
+  }),
+
   sendMessage: Joi.object({
     body: Joi.object({
       message_type: Joi.string().valid('text', 'image').default('text'),

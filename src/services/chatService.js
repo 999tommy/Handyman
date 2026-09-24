@@ -1,5 +1,5 @@
-const { supabase } = require('../config/supabase');
-const { NotFoundError, ForbiddenError } = require('../middleware/errorHandler');
+const { supabase, supabaseAdmin } = require('../config/supabase');
+const { NotFoundError, ForbiddenError, ValidationError } = require('../middleware/errorHandler');
 const { MESSAGE_TYPES } = require('../utils/constants');
 const { paginate, createPaginationMeta } = require('../utils/helpers');
 const logger = require('../utils/logger');
@@ -12,36 +12,141 @@ const { emitToConversation, emitToUser } = require('../config/socket');
  */
 
 /**
- * Create a conversation (after offer acceptance)
- * @param {string} jobId 
- * @param {string} customerId 
- * @param {string} artisanId 
+ * Create or get an existing conversation.
+ * Supports both offer-accepted job chats and direct profile enquiries (without job).
+ * Accepts either:
+ *   - createConversation(jobId, customerId, artisanId)
+ *   - createConversation({ customerId, artisanId, jobId })
+ * @param {string|Object} jobIdOrOptions
+ * @param {string} [customerId]
+ * @param {string} [artisanId]
  * @returns {Promise<Object>}
  */
-async function createConversation(jobId, customerId, artisanId) {
+async function createConversation(jobIdOrOptions, customerId, artisanId) {
   try {
-    // Check if conversation already exists
-    const { data: existing } = await supabase
-      .from('conversations')
-      .select('id')
-      .eq('job_id', jobId)
-      .eq('customer_id', customerId)
-      .eq('artisan_id', artisanId)
-      .single();
+    let jId = jobIdOrOptions;
+    let cId = customerId;
+    let aId = artisanId;
 
-    if (existing) {
-      return existing;
+    if (typeof jobIdOrOptions === 'object' && jobIdOrOptions !== null) {
+      jId = jobIdOrOptions.jobId || jobIdOrOptions.job_id || null;
+      cId = jobIdOrOptions.customerId || jobIdOrOptions.customer_id;
+      aId = jobIdOrOptions.artisanId || jobIdOrOptions.artisan_id;
     }
 
-    // Create new conversation
-    const { data: conversation, error } = await supabase
+    if (!cId || !aId) {
+      throw new ValidationError('Customer ID and Artisan ID are required');
+    }
+
+    if (cId === aId) {
+      throw new ValidationError('You cannot start a conversation with yourself');
+    }
+
+    // 1. Verify artisan exists and fetch their profile details
+    const { data: artisan, error: artisanError } = await supabaseAdmin
+      .from('artisans')
+      .select(`
+        id,
+        profession,
+        profiles!artisans_id_fkey(id, full_name, profile_picture_url)
+      `)
+      .eq('id', aId)
+      .maybeSingle();
+
+    if (artisanError || !artisan) {
+      throw new NotFoundError('Artisan');
+    }
+
+    // 2. Ensure customer record exists in customers table (for foreign key constraint)
+    const { data: customerRecord } = await supabaseAdmin
+      .from('customers')
+      .select('id')
+      .eq('id', cId)
+      .maybeSingle();
+
+    if (!customerRecord) {
+      const { error: custCreateError } = await supabaseAdmin
+        .from('customers')
+        .insert({ id: cId });
+      if (custCreateError) {
+        logger.warn('Could not auto-create customer entry for chat:', custCreateError);
+      }
+    }
+
+    // 3. Check if conversation already exists
+    let query = supabaseAdmin
+      .from('conversations')
+      .select(`
+        id,
+        job_id,
+        customer_id,
+        artisan_id,
+        created_at,
+        updated_at,
+        job:jobs(id, title, status),
+        customer:customers!customer_id(
+          id,
+          profiles!customers_id_fkey(full_name, profile_picture_url)
+        ),
+        artisan:artisans!artisan_id(
+          id,
+          profiles!artisans_id_fkey(full_name, profile_picture_url),
+          profession
+        )
+      `)
+      .eq('customer_id', cId)
+      .eq('artisan_id', aId);
+
+    if (jId) {
+      query = query.eq('job_id', jId);
+    } else {
+      query = query.is('job_id', null);
+    }
+
+    const { data: existing } = await query.maybeSingle();
+
+    const participantInfo = {
+      id: artisan.id,
+      name: artisan.profiles?.full_name || 'Artisan',
+      full_name: artisan.profiles?.full_name || 'Artisan',
+      avatar_url: artisan.profiles?.profile_picture_url || null,
+      profile_picture_url: artisan.profiles?.profile_picture_url || null,
+      profession: artisan.profession || null,
+    };
+
+    if (existing) {
+      return {
+        ...existing,
+        participant: participantInfo,
+      };
+    }
+
+    // 4. Create new conversation
+    const { data: conversation, error } = await supabaseAdmin
       .from('conversations')
       .insert({
-        job_id: jobId,
-        customer_id: customerId,
-        artisan_id: artisanId,
+        job_id: jId || null,
+        customer_id: cId,
+        artisan_id: aId,
       })
-      .select()
+      .select(`
+        id,
+        job_id,
+        customer_id,
+        artisan_id,
+        created_at,
+        updated_at,
+        job:jobs(id, title, status),
+        customer:customers!customer_id(
+          id,
+          profiles!customers_id_fkey(full_name, profile_picture_url)
+        ),
+        artisan:artisans!artisan_id(
+          id,
+          profiles!artisans_id_fkey(full_name, profile_picture_url),
+          profession
+        )
+      `)
       .single();
 
     if (error) {
@@ -49,17 +154,22 @@ async function createConversation(jobId, customerId, artisanId) {
       throw new Error('Failed to create conversation');
     }
 
-    // Send system message
+    // 5. Send initial system message
     await createSystemMessage(
       conversation.id,
       'conversation_started',
-      'Conversation started. You can now chat with each other about the job.',
-      { job_id: jobId }
+      jId
+        ? 'Conversation started. You can now chat with each other about the job.'
+        : 'Direct enquiry started. You can now chat with the artisan.',
+      jId ? { job_id: jId } : null
     );
 
-    logger.info(`Conversation created: ${conversation.id}`);
+    logger.info(`Conversation created: ${conversation.id} (job: ${jId || 'none'})`);
 
-    return conversation;
+    return {
+      ...conversation,
+      participant: participantInfo,
+    };
   } catch (error) {
     logger.logError(error, { context: 'createConversation' });
     throw error;
@@ -474,8 +584,74 @@ async function increaseBudget(conversationId, userId, newBudget) {
   }
 }
 
+/**
+ * Get a single conversation by ID
+ * @param {string} conversationId 
+ * @param {string} userId 
+ * @returns {Promise<Object>}
+ */
+async function getConversationById(conversationId, userId) {
+  try {
+    const { data: conversation, error } = await supabaseAdmin
+      .from('conversations')
+      .select(`
+        id,
+        job_id,
+        customer_id,
+        artisan_id,
+        created_at,
+        updated_at,
+        job:jobs(id, title, status),
+        customer:customers!customer_id(
+          id,
+          profiles!customers_id_fkey(full_name, profile_picture_url)
+        ),
+        artisan:artisans!artisan_id(
+          id,
+          profiles!artisans_id_fkey(full_name, profile_picture_url),
+          profession
+        )
+      `)
+      .eq('id', conversationId)
+      .single();
+
+    if (error || !conversation) {
+      throw new NotFoundError('Conversation');
+    }
+
+    const isParticipant =
+      conversation.customer_id === userId ||
+      conversation.artisan_id === userId;
+
+    if (!isParticipant) {
+      throw new ForbiddenError('You are not a participant in this conversation');
+    }
+
+    const isCustomer = conversation.customer_id === userId;
+    const partnerData = isCustomer ? conversation.artisan : conversation.customer;
+
+    const participant = {
+      id: partnerData?.id,
+      name: partnerData?.profiles?.full_name || 'User',
+      full_name: partnerData?.profiles?.full_name || 'User',
+      avatar_url: partnerData?.profiles?.profile_picture_url || null,
+      profile_picture_url: partnerData?.profiles?.profile_picture_url || null,
+      profession: partnerData?.profession || null,
+    };
+
+    return {
+      ...conversation,
+      participant,
+    };
+  } catch (error) {
+    logger.logError(error, { context: 'getConversationById' });
+    throw error;
+  }
+}
+
 module.exports = {
   createConversation,
+  getConversationById,
   getUserConversations,
   getConversationMessages,
   sendMessage,

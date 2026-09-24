@@ -3,106 +3,97 @@ const config = require('../config/env');
 const logger = require('../utils/logger');
 
 /**
- * SMS Service
- * 
- * Handles SMS sending via Twilio or Africa's Talking
+ * SMS Service — Africa's Talking
+ *
+ * All OTP / verification SMS is sent via Africa's Talking.
+ *
+ * Sandbox vs Live:
+ *   - Sandbox  → AFRICA_TALKING_USERNAME=sandbox   (no real SMS, visible in AT dashboard)
+ *   - Live     → AFRICA_TALKING_USERNAME=<your AT username>
+ *
+ * Docs: https://developers.africastalking.com/docs/sms/sending
  */
 
-/**
- * Send SMS via Twilio
- */
-async function sendViaTwilio(to, message) {
-  try {
-    const accountSid = config.sms.accountSid;
-    const authToken = config.sms.apiKey;
-    const from = config.sms.senderId;
-
-    const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
-
-    const response = await axios.post(
-      url,
-      new URLSearchParams({
-        To: to,
-        From: from,
-        Body: message,
-      }),
-      {
-        auth: {
-          username: accountSid,
-          password: authToken,
-        },
-      }
-    );
-
-    logger.info(`SMS sent via Twilio to ${to}`);
-    return response.data;
-  } catch (error) {
-    logger.error('Twilio SMS error:', error.message);
-    throw error;
-  }
-}
+const AT_SANDBOX_URL = 'https://api.sandbox.africastalking.com/version1/messaging';
+const AT_LIVE_URL    = 'https://api.africastalking.com/version1/messaging';
 
 /**
- * Send SMS via Africa's Talking
+ * Send an SMS via Africa's Talking
+ * @param {string} to      - E.164 phone number, e.g. +2347047027012
+ * @param {string} message - SMS body (keep under 160 chars to avoid multi-part billing)
+ * @returns {Promise<Object>}
  */
 async function sendViaAfricasTalking(to, message) {
+  const apiKey   = config.sms.apiKey;
+  const username = config.sms.username;
+
+  if (!apiKey) {
+    throw new Error('AFRICA_TALKING_KEY is not set in environment variables');
+  }
+
+  const isSandbox = username === 'sandbox';
+  const url       = isSandbox ? AT_SANDBOX_URL : AT_LIVE_URL;
+
+  const params = new URLSearchParams({
+    username,
+    to,
+    message,
+  });
+
+  // Only set a Sender ID on the live environment (sandbox ignores / rejects it)
+  if (!isSandbox && config.sms.senderId) {
+    params.set('from', config.sms.senderId);
+  }
+
   try {
-    const apiKey = config.sms.apiKey;
-    const username = 'sandbox'; // Change to your username in production
+    const response = await axios.post(url, params.toString(), {
+      headers: {
+        apiKey,
+        Accept: 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+    });
 
-    const url = 'https://api.africastalking.com/version1/messaging';
+    const result = response.data?.SMSMessageData;
+    
+    // Check if AT returned an error like InvalidSenderId
+    if (result?.Message === 'InvalidSenderId') {
+      logger.error(`Africa's Talking error: Sender ID "${config.sms.senderId}" is not registered/approved yet on your AT account.`);
+      throw new Error(`Sender ID "${config.sms.senderId}" is not registered or approved on Africa's Talking.`);
+    }
 
-    const response = await axios.post(
-      url,
-      new URLSearchParams({
-        username,
-        to,
-        message,
-      }),
-      {
-        headers: {
-          'apiKey': apiKey,
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-      }
-    );
+    const recipient = result?.Recipients?.[0];
+    logger.info(`SMS sent via Africa's Talking to ${to} [${isSandbox ? 'SANDBOX' : 'LIVE'}]: ${recipient?.status || result?.Message}`);
+    logger.debug('AT response:', JSON.stringify(result));
 
-    logger.info(`SMS sent via Africa's Talking to ${to}`);
-    return response.data;
+    // Check if AT itself reported a delivery failure for the recipient
+    if (recipient && recipient.status !== 'Success' && recipient.status !== 'Submitted') {
+      logger.warn(`AT delivery warning for ${to}: ${recipient.status} — ${recipient.statusCode}`);
+      throw new Error(`SMS delivery failed: ${recipient.status} (code ${recipient.statusCode})`);
+    }
+
+    return result;
   } catch (error) {
-    logger.error("Africa's Talking SMS error:", error.message);
-    throw error;
+    const atError = error.response?.data || error.message;
+    logger.error("Africa's Talking SMS error:", atError);
+    throw new Error(`SMS delivery failed: ${typeof atError === 'object' ? JSON.stringify(atError) : atError}`);
   }
 }
 
 /**
- * Send SMS (router function)
- * @param {string} to - Phone number in international format
- * @param {string} message - SMS message
+ * Send an SMS (main entry point)
+ * @param {string} to      - Phone number in E.164 international format (+2347XXXXXXXXX)
+ * @param {string} message - SMS body
  * @returns {Promise<Object>}
  */
 async function sendSMS(to, message) {
-  try {
-    // In development, just log the SMS
-    if (config.nodeEnv === 'development') {
-      logger.info(`[DEV SMS] To: ${to}, Message: ${message}`);
-      return { success: true, dev: true };
-    }
-
-    // Send via configured provider
-    if (config.sms.provider === 'twilio') {
-      return await sendViaTwilio(to, message);
-    } else if (config.sms.provider === 'africastalking') {
-      return await sendViaAfricasTalking(to, message);
-    } else {
-      throw new Error('No SMS provider configured');
-    }
-  } catch (error) {
-    logger.logError(error, { context: 'sendSMS' });
-    throw error;
+  // If no AT key is configured (e.g. fresh local clone without credentials), log mock in dev
+  if (!config.sms.apiKey && config.nodeEnv === 'development') {
+    logger.info(`[MOCK DEV SMS - No API Key] To: ${to} | Message: ${message}`);
+    return { success: true, dev: true };
   }
+
+  return sendViaAfricasTalking(to, message);
 }
 
-module.exports = {
-  sendSMS,
-};
+module.exports = { sendSMS };

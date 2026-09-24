@@ -19,6 +19,38 @@ const getConversations = asyncHandler(async (req, res) => {
 });
 
 /**
+ * Create or get conversation (Direct enquiry / message from artisan profile)
+ * POST /api/chat/conversations
+ * Body: { artisan_id, job_id? }
+ */
+const createConversation = asyncHandler(async (req, res) => {
+  const { artisan_id, job_id } = req.body;
+  const conversation = await chatService.createConversation({
+    customerId: req.user.id,
+    artisanId: artisan_id,
+    jobId: job_id || null,
+  });
+
+  res.status(200).json({
+    success: true,
+    data: conversation,
+  });
+});
+
+/**
+ * Get single conversation by ID
+ * GET /api/chat/conversations/:id
+ */
+const getConversation = asyncHandler(async (req, res) => {
+  const conversation = await chatService.getConversationById(req.params.id, req.user.id);
+
+  res.status(200).json({
+    success: true,
+    data: conversation,
+  });
+});
+
+/**
  * Get conversation messages
  * GET /api/chat/conversations/:id/messages
  */
@@ -105,6 +137,8 @@ const increaseBudget = asyncHandler(async (req, res) => {
 
 module.exports = {
   getConversations,
+  getConversation,
+  createConversation,
   getMessages,
   sendMessage,
   markAsRead,

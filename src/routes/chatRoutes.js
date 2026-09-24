@@ -11,6 +11,17 @@ const { validate, chatSchemas } = require('../middleware/validation');
 // Get conversations
 router.get('/conversations', authenticate, chatController.getConversations);
 
+// Create or get conversation (Direct enquiry / message from artisan profile)
+router.post(
+  '/conversations',
+  authenticate,
+  validate(chatSchemas.createConversation),
+  chatController.createConversation
+);
+
+// Get single conversation details
+router.get('/conversations/:id', authenticate, chatController.getConversation);
+
 // Get conversation messages
 router.get('/conversations/:id/messages', authenticate, chatController.getMessages);
 

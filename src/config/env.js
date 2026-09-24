@@ -21,6 +21,9 @@ const config = {
     serviceKey: process.env.SUPABASE_SERVICE_KEY,
   },
 
+  // Internal pepper used to derive deterministic passwords for Firebase phone-login users
+  internalAuthSecret: process.env.INTERNAL_AUTH_SECRET,
+
   // JWT
   jwt: {
     secret: process.env.JWT_SECRET,
@@ -45,13 +48,12 @@ const config = {
         ],
   },
 
-  // SMS
+  // SMS — Africa's Talking
   sms: {
-    provider: process.env.SMS_PROVIDER || 'twilio',
-    apiKey: process.env.SMS_API_KEY,
-    apiSecret: process.env.SMS_API_SECRET,
-    senderId: process.env.SMS_SENDER_ID || 'HANDYMAN',
-    accountSid: process.env.SMS_ACCOUNT_SID, // Twilio specific
+    provider: process.env.SMS_PROVIDER || 'africastalking',
+    apiKey: process.env.AFRICA_TALKING_KEY,
+    username: process.env.AFRICA_TALKING_USERNAME || 'sandbox',
+    senderId: process.env.SMS_SENDER_ID || null,
   },
 
   // Paystack
@@ -71,6 +73,10 @@ const config = {
   firebase: {
     serverKey: process.env.FIREBASE_SERVER_KEY,
     projectId: process.env.FIREBASE_PROJECT_ID,
+    // Raw service account JSON (used in production instead of committing serviceAccountKey.json)
+    serviceAccountJson: process.env.FIREBASE_SERVICE_ACCOUNT,
+    // Fallback: path to the service account key file in the project root
+    serviceAccountPath: process.env.FIREBASE_SERVICE_ACCOUNT_PATH || path.resolve(__dirname, '../../serviceAccountKey.json'),
   },
 
   // Upload
@@ -128,6 +134,7 @@ function validateConfig() {
     'PAYSTACK_SECRET_KEY',
     'SMS_API_KEY',
     'FIREBASE_SERVER_KEY',
+    'INTERNAL_AUTH_SECRET',
   ];
 
   const missingRecommended = recommended.filter(key => !process.env[key]);

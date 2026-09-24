@@ -10,8 +10,11 @@ const crypto = require('crypto');
  * @returns {string} Random numeric code
  */
 function generateVerificationCode(length = 6) {
-  // Hardcoded for development as requested
-  return '666666';
+  if (!Number.isInteger(length) || length <= 0 || length > 10) {
+    throw new Error('Invalid verification code length');
+  }
+  const code = crypto.randomInt(0, Math.pow(10, length));
+  return String(code).padStart(length, '0');
 }
 
 /**

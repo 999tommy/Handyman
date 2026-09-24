@@ -212,6 +212,7 @@ app.use('/upload', uploadRoutes);
 app.use('/artisans', artisanRoutes);
 app.use('/categories', categoryRoutes);
 app.use('/payments', paymentRoutes);
+app.use('/chat', chatRoutes);
 
 // Fallback 2: Duplicate '/api/api' prefix (common with Axios baseURL misconfigurations)
 app.use(`${API_PREFIX}/api/auth`, authRoutes);
@@ -219,6 +220,7 @@ app.use(`${API_PREFIX}/api/upload`, uploadRoutes);
 app.use(`${API_PREFIX}/api/artisans`, artisanRoutes);
 app.use(`${API_PREFIX}/api/categories`, categoryRoutes);
 app.use(`${API_PREFIX}/api/payments`, paymentRoutes);
+app.use(`${API_PREFIX}/api/chat`, chatRoutes);
 
 // API documentation route
 app.get(`${API_PREFIX}`, (req, res) => {
