@@ -50,7 +50,8 @@ const verifyPayment = asyncHandler(async (req, res) => {
  * POST /api/payments/:id/release
  */
 const releasePayment = asyncHandler(async (req, res) => {
-  const result = await paymentService.releasePayment(req.params.id, req.user.id);
+  const { tip_amount } = req.body || {};
+  const result = await paymentService.releasePayment(req.params.id, req.user.id, tip_amount);
 
   res.status(200).json({
     success: true,

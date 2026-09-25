@@ -242,9 +242,10 @@ async function verifyPaystackPayment(reference) {
  * Release payment to artisan (after job completion)
  * @param {string} paymentId 
  * @param {string} customerId 
+ * @param {number} [tipAmount] 
  * @returns {Promise<Object>}
  */
-async function releasePayment(paymentId, customerId) {
+async function releasePayment(paymentId, customerId, tipAmount = 0) {
   try {
     // Get payment
     const { data: payment, error } = await supabase
@@ -305,9 +306,49 @@ async function releasePayment(paymentId, customerId) {
 
     logger.info(`Payment released: ${paymentId}`);
 
+    let tipCheckout = null;
+    if (tipAmount > 0) {
+      const reference = generateReference('TIP');
+      const { data: tipRecord, error: tipError } = await supabaseAdmin
+        .from('payments')
+        .insert({
+          job_id: payment.job_id,
+          customer_id: customerId,
+          artisan_id: payment.artisan_id,
+          amount: tipAmount,
+          platform_fee: 0,
+          artisan_payout: tipAmount,
+          transaction_reference: reference,
+          status: PAYMENT_STATUS.PENDING,
+        })
+        .select()
+        .single();
+
+      if (!tipError) {
+        try {
+          const paystackResponse = await initializePaystackPayment(
+            tipAmount,
+            customerId,
+            reference
+          );
+          tipCheckout = {
+            payment_id: tipRecord.id,
+            authorization_url: paystackResponse.authorization_url,
+            access_code: paystackResponse.access_code,
+            reference,
+          };
+        } catch (initErr) {
+          logger.error('Failed to initialize tip checkout:', initErr);
+        }
+      } else {
+        logger.error('Failed to create tip payment record:', tipError);
+      }
+    }
+
     return {
       message: 'Payment released to artisan',
       status: PAYMENT_STATUS.RELEASED,
+      tip_checkout: tipCheckout,
     };
   } catch (error) {
     logger.logError(error, { context: 'releasePayment' });
@@ -524,7 +565,7 @@ async function handleChargeSuccess(payment, paystackData) {
     })
     .eq('id', payment.id);
 
-  if (payment.job?.id) {
+  if (payment.job?.id && payment.job.status !== JOB_STATUS.COMPLETED) {
     await supabaseAdmin
       .from('jobs')
       .update({ status: JOB_STATUS.IN_PROGRESS })

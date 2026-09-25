@@ -329,7 +329,7 @@ async function browseJobs(artisanId, filters = {}) {
         category:categories(id, name, icon_url),
         photos:job_photos(photo_url)
       `, { count: 'exact' })
-      .eq('status', JOB_STATUS.POSTED);
+      .in('status', [JOB_STATUS.POSTED, 'offers_received']);
 
     if (category) {
       query = query.eq('category_id', category);
@@ -432,6 +432,12 @@ async function updateJob(jobId, customerId, updates) {
     // Can't update completed/cancelled jobs
     if ([JOB_STATUS.COMPLETED, JOB_STATUS.CANCELLED].includes(job.status)) {
       throw new ValidationError('Cannot update completed or cancelled jobs');
+    }
+
+    if (updates.status === JOB_STATUS.COMPLETED) {
+      if (![JOB_STATUS.IN_PROGRESS, JOB_STATUS.ASSIGNED].includes(job.status)) {
+        throw new ValidationError('Only jobs in progress or assigned can be marked as completed');
+      }
     }
 
     // Update job
